@@ -1,0 +1,9 @@
+{
+  "name": "Mission Control V3",
+  "short_name": "Mission Control",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#07111f",
+  "theme_color": "#07111f",
+  "description": "Executive operating system for projects, attention, actions, dependencies, weekly review and momentum."
+}
