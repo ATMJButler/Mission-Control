@@ -1,0 +1,141 @@
+name: Patch Mission Control immediate sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/patch-immediate-sync.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch index.html
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('index.html')
+          s = path.read_text()
+
+          sync_block = r'''function queueProjectPush(){
+            const c=syncConfig();if(!c.url||!c.token)return;
+            clearTimeout(syncTimer);
+            syncTimer=setTimeout(async()=>{
+              if(syncBusy){queueProjectPush();return}
+              await pushProjects(false);
+            },700)
+          }
+          async function pushProjects(showToast=true){
+            const c=syncConfig();
+            if(!c.url||!c.token){
+              setSyncStatus("Local only","This device is not connected to shared project data.");
+              if(showToast)toast("Saved locally — connect this device to sync");
+              return false
+            }
+            if(syncBusy){
+              for(let i=0;i<20&&syncBusy;i++)await new Promise(r=>setTimeout(r,150));
+              if(syncBusy){
+                setSyncStatus("Sync delayed","Another sync is still running. Your change is saved locally and will retry.");
+                queueProjectPush();
+                if(showToast)toast("Saved locally — sync retry queued");
+                return false
+              }
+            }
+            syncBusy=true;
+            setSyncStatus("Syncing…","Merging project updates with the shared Google Sheet.");
+            try{
+              const r=await fetch(c.url,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({token:c.token,projects:state.projects,source:sourceLabel()})});
+              const x=await r.json();
+              if(!x.ok)throw new Error(x.error||"Sync failed");
+              if(Array.isArray(x.projects)){
+                state.projects=x.projects.map(p=>migrate({projects:[p]}).projects[0]);
+                localStorage.setItem(KEY,JSON.stringify(state));
+                renderAll()
+              }
+              setSyncStatus("Connected","Conflict-safe project sync active. Last push: "+new Date().toLocaleTimeString());
+              if(showToast)toast("Saved & synced");
+              return true
+            }catch(e){
+              setSyncStatus("Sync problem",e.message||"Could not reach shared source");
+              queueProjectPush();
+              if(showToast)toast("Saved locally — sync failed");
+              return false
+            }finally{
+              syncBusy=false
+            }
+          }
+          async function pullProjects'''
+
+          s, n = re.subn(
+              r'function queueProjectPush\(\)\{.*?\nasync function pushProjects\(showToast=true\)\{.*?\n\}\nasync function pullProjects',
+              sync_block,
+              s,
+              count=1,
+              flags=re.S,
+          )
+          assert n == 1, 'Could not patch sync functions'
+
+          save_project = r'''async function saveProjectData(){
+            let p=state.projects.find(x=>x.id===pId.value),isNew=!p;if(!p){p={id:"p"+Date.now()};state.projects.push(p)}
+            Object.assign(p,{name:pName.value.trim()||"Untitled Project",area:pArea.value,status:pStatus.value,priority:pPriority.value,attention:pAttention.value,owner:pOwner.value.trim()||"John",description:pDesc.value.trim(),outcome:pOutcome.value.trim(),doneDefinition:pDoneDef.value.trim(),currentState:pCurrent.value.trim(),nextAction:pNext.value.trim(),waitingOn:pWaiting.value.trim(),waitingSince:pWaitingSince.value,followupDate:pFollow.value,deadline:pDeadline.value,milestone:pMilestone.value.trim(),milestoneDate:pMilestoneDate.value,progress:Number(pProgress.value)||0,dependencyId:pDependency.value,tags:pTags.value.split(",").map(x=>x.trim()).filter(Boolean),notes:pNotes.value.trim()});stampProject(p);
+            ensureAction(p);log(isNew?"project_create":"project_edit",p.id,isNew?"Project created.":"Project edited.");
+            localStorage.setItem(KEY,JSON.stringify(state));
+            closeModal("projectModal");
+            renderAll();
+            setSyncStatus("Syncing…","Project saved locally. Sending this change to shared data now.");
+            await pushProjects(true)
+          }
+          function deleteProjectData'''
+
+          s, n = re.subn(
+              r'function saveProjectData\(\)\{.*?\n\}\nfunction deleteProjectData',
+              save_project,
+              s,
+              count=1,
+              flags=re.S,
+          )
+          assert n == 1, 'Could not patch Save Project'
+
+          save_update = r'''async function saveUpdateData(){
+            const p=state.projects.find(x=>x.id===uProject.value);if(!p)return;const priorWait=p.waitingOn;
+            p.status=uStatus.value;p.attention=uAttention.value;p.currentState=uCurrent.value.trim();p.nextAction=uNext.value.trim();p.waitingOn=uWaiting.value.trim();p.followupDate=uFollow.value;p.progress=Number(uProgress.value)||0;stampProject(p);if(p.waitingOn&&!priorWait&&!p.waitingSince)p.waitingSince=today();if(!p.waitingOn)p.waitingSince="";ensureAction(p);log("update",p.id,uText.value.trim()||"Project updated.");
+            localStorage.setItem(KEY,JSON.stringify(state));
+            closeModal("updateModal");
+            renderAll();
+            setSyncStatus("Syncing…","Project update saved locally. Sending this change to shared data now.");
+            await pushProjects(true)
+          }
+          function exportData'''
+
+          s, n = re.subn(
+              r'function saveUpdateData\(\)\{.*?\n\}\nfunction exportData',
+              save_update,
+              s,
+              count=1,
+              flags=re.S,
+          )
+          assert n == 1, 'Could not patch quick update save'
+
+          path.write_text(s)
+          PY
+      - name: Commit patch
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then
+            echo "No patch needed"
+            exit 0
+          fi
+          git config user.name "Mission Control Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html
+          git commit -m "Make project saves sync immediately"
+          git push
