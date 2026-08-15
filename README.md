@@ -47,3 +47,14 @@ Use V3 for several days and capture real friction. The next engineering mileston
 The `Projects` tab is a regular table on purpose, so Mission Control, manual Google Sheet edits, and connected assistant workflows can work against the same records.
 
 **Conflict rule:** current V4 is last-write-wins. Avoid editing the same project in two places at the exact same time.
+
+## V5 improvements
+- Dashboard count cards are clickable and drill into the projects behind the number.
+- New **Recently Changed** view showing the latest project state, timestamp and update source.
+- Stale projects are visibly badged and can be filtered directly.
+- New **Today** focus view computes what deserves attention from priority, Needs John, deadlines, milestones, follow-ups, waiting age and staleness.
+- Conflict-safe shared sync adds `lastUpdatedAt` and `lastUpdatedBy` so a stale browser copy does not silently overwrite a newer Sheet edit.
+- Service worker cache updated so new Mission Control versions refresh more reliably on phones.
+
+### V5 Apps Script upgrade
+Replace the Apps Script code with `google_apps_script_Code.gs`, but **keep your existing private SYNC_TOKEN value**. Save it, then update the existing Web App deployment to a new version. Do not run `setupSheet()` unless you intentionally need to repair headers.

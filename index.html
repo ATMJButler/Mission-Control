@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#07111f">
-<title>Mission Control V4</title>
+<title>Mission Control V5</title>
 <link rel="manifest" href="manifest.webmanifest">
 <style>
 :root{
@@ -20,11 +20,11 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}.app{min-height:
 .page{display:none}.page.active{display:block}
 .hero{background:linear-gradient(180deg,rgba(18,38,67,.96),rgba(11,24,42,.97));border:1px solid #315174;border-radius:20px;padding:18px;box-shadow:0 18px 40px rgba(0,0,0,.25)}
 .hero-top{display:flex;justify-content:space-between;gap:14px}.hero h2{font-size:clamp(22px,3vw,34px);margin:0}.hero-sub{color:var(--muted);margin-top:5px}
-.hero-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}.hero-stat{background:#0a1728;border:1px solid #28435f;border-radius:14px;padding:12px}.hero-stat .n{font-size:30px;font-weight:900}.hero-stat .l{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}.hero-stat .d{font-size:11px;color:#c7d3e1;margin-top:2px}
+.hero-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:14px}.hero-stat{background:#0a1728;border:1px solid #28435f;border-radius:14px;padding:12px;transition:.15s ease}.hero-stat.clickable{cursor:pointer}.hero-stat.clickable:hover{border-color:#5e82a8;transform:translateY(-1px)}.hero-stat .n{font-size:30px;font-weight:900}.hero-stat .l{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}.hero-stat .d{font-size:11px;color:#c7d3e1;margin-top:2px}
 .section-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:18px 0 9px}.section-title h3{margin:0;font-size:17px}.hint{font-size:11px;color:var(--muted)}
 .priority-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.priority-card{background:#0f1c30;border:1px solid #315072;border-radius:15px;padding:14px;border-top:3px solid var(--accent)}.priority-card .rank{font-size:10px;color:#b9c8d9;text-transform:uppercase;letter-spacing:.08em}.priority-card h4{margin:5px 0 7px}.priority-card p{margin:0;font-size:12px;color:#d4dfeb}
-.delta-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.delta-card{background:#0d1a2c;border:1px solid var(--line);border-radius:14px;padding:12px}.delta-card b{display:block}.delta-card small{color:var(--muted)}
-.lanes{display:grid;grid-template-columns:repeat(5,minmax(220px,1fr));gap:10px;overflow-x:auto}.lane{background:#0d1a2c;border:1px solid var(--line);border-radius:15px;padding:13px;position:relative;min-height:160px}.lane:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--area-color)}.lane h4{margin:0 0 9px}.lane-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.mini{background:#081423;border:1px solid #203550;border-radius:9px;padding:8px}.mini b{display:block;font-size:18px}.mini span{font-size:10px;color:var(--muted)}.lane small{display:block;color:#c7d3e0;margin-top:9px}
+.delta-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.delta-card{background:#0d1a2c;border:1px solid var(--line);border-radius:14px;padding:12px}.delta-card.clickable{cursor:pointer}.delta-card.clickable:hover{border-color:#4b6e95}.delta-card b{display:block}.delta-card small{color:var(--muted)}
+.lanes{display:grid;grid-template-columns:repeat(5,minmax(220px,1fr));gap:10px;overflow-x:auto}.lane{background:#0d1a2c;border:1px solid var(--line);border-radius:15px;padding:13px;position:relative;min-height:160px}.lane:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--area-color)}.lane h4{margin:0 0 9px}.lane-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.mini{background:#081423;border:1px solid #203550;border-radius:9px;padding:8px}.mini.clickable{cursor:pointer}.mini.clickable:hover{border-color:#4b6e95}.mini b{display:block;font-size:18px}.mini span{font-size:10px;color:var(--muted)}.lane small{display:block;color:#c7d3e0;margin-top:9px}
 .toolbar{display:grid;grid-template-columns:minmax(220px,1.5fr) repeat(4,minmax(120px,.6fr)) auto;gap:8px;margin:14px 0}.field{width:100%;background:#091525;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px}.chips{display:flex;gap:7px;flex-wrap:wrap}.chip{border:1px solid var(--line);background:#091525;color:#cbd7e5;padding:7px 9px;border-radius:999px}.chip.active{background:#deecff;color:#07111f;border-color:#deecff;font-weight:850}
 .board{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.card{background:#0d1a2c;border:1px solid var(--line);border-radius:15px;padding:13px}.card:hover{border-color:#3b5a7d}.card-top{display:flex;justify-content:space-between;gap:8px}.card h4{margin:0;font-size:15px}.badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}.badge{font-size:10px;border:1px solid var(--line);border-radius:999px;padding:4px 6px;color:#cbd6e2}.needs{background:#331919;color:#ffb0b0;border-color:#714040}.moving{background:#13291f;color:#9ce1b8;border-color:#34654b}.waiting{background:#2b2412;color:#ffd57b;border-color:#765d25}.parked{background:#211a33;color:#cdbfff;border-color:#5c4b7c}.done{background:#13271b;color:#a4dfb9;border-color:#3c664d}
 .desc{font-size:12px;color:var(--muted);margin:8px 0}.state{font-size:12px}.next{background:#091525;border-left:3px solid var(--accent);padding:9px;border-radius:8px;margin-top:8px;font-size:12px}.next b{display:block;color:#9ed0f7;font-size:10px;text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px}.meta div{font-size:10px;color:var(--muted)}.meta b{display:block;color:#e0e8f0;margin-top:2px}.age{font-weight:800}.age.warn{color:var(--warn)}.age.bad{color:var(--bad)}
@@ -35,7 +35,7 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}.app{min-height:
 .win-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.win{background:#0d1a2c;border:1px solid var(--line);border-radius:15px;padding:13px}.win .n{font-size:31px;font-weight:900}.win .l{font-size:11px;color:var(--muted)}
 .inbox-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.capture-box{background:#0d1a2c;border:1px solid var(--line);border-radius:15px;padding:13px}.capture-box textarea{min-height:120px}
 .dep-row{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;background:#091525;border:1px solid #203550;border-radius:10px;padding:9px}.dep-row .arrow{color:var(--muted)}
-.setting-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.setting-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.focus-list{display:flex;flex-direction:column;gap:9px}.focus-card{background:#0d1a2c;border:1px solid var(--line);border-radius:15px;padding:13px;cursor:pointer}.focus-card:hover{border-color:#4b6e95}.focus-reason{font-size:11px;color:var(--warn);margin-top:4px}.change-source{display:inline-block;margin-top:5px;font-size:10px;border:1px solid var(--line);border-radius:999px;padding:3px 6px;color:#cbd6e2}
 .modal-backdrop{position:fixed;inset:0;background:rgba(1,6,16,.74);display:none;align-items:center;justify-content:center;padding:16px;z-index:100}.modal-backdrop.show{display:flex}.modal{width:min(820px,100%);max-height:92vh;overflow:auto;background:#0e1a2c;border:1px solid #315072;border-radius:18px;padding:16px;box-shadow:0 30px 80px rgba(0,0,0,.5)}.modal h2{margin:0}.sub{font-size:12px;color:var(--muted);margin:5px 0 13px}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.full{grid-column:1/-1}.label{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:#a9bacd;margin-bottom:4px}.modal-actions{display:flex;justify-content:flex-end;gap:7px;margin-top:12px}.hidden{display:none!important}.toast{position:fixed;right:16px;bottom:16px;background:#edf6ff;color:#07111f;padding:10px 12px;border-radius:11px;font-weight:850;display:none;z-index:200}.toast.show{display:block}
 @media(max-width:1250px){.hero-grid{grid-template-columns:repeat(2,1fr)}.board{grid-template-columns:repeat(2,1fr)}.toolbar{grid-template-columns:1fr 1fr 1fr}.toolbar .wide{grid-column:1/-1}.two-col{grid-template-columns:1fr}.win-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:820px){
@@ -63,7 +63,9 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}.app{min-height:
 
 <div class="nav">
   <button class="active" data-page="home">Home</button>
+  <button data-page="today">Today</button>
   <button data-page="projects">Projects</button>
+  <button data-page="changes">Changes</button>
   <button data-page="actions">Actions</button>
   <button data-page="inbox">Inbox</button>
   <button data-page="weekly">Weekly Review</button>
@@ -92,6 +94,16 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}.app{min-height:
 
   <div class="section-title"><h3>Attention radar</h3><div class="hint">Aging, stale, blocked and overdue.</div></div>
   <div class="list" id="radar"></div>
+</section>
+
+<section class="page" id="page-today">
+  <div class="section-title"><h3>Today</h3><div class="hint">A computed focus list based on attention, deadlines, milestones, follow-ups and staleness.</div></div>
+  <div class="focus-list" id="todayList"></div>
+</section>
+
+<section class="page" id="page-changes">
+  <div class="section-title"><h3>Recently Changed</h3><div class="hint">Latest project changes across Mission Control, Google Sheets and AI-assisted updates.</div></div>
+  <div class="list" id="changesList"></div>
 </section>
 
 <section class="page" id="page-projects">
@@ -156,6 +168,7 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}.app{min-height:
 <div class="list">
 <label><span class="label">Google Apps Script Web App URL</span><input class="field" id="syncUrl" placeholder="https://script.google.com/macros/s/.../exec"></label>
 <label><span class="label">Sync token</span><input class="field" id="syncToken" type="password" placeholder="Your private token"></label>
+<label><span class="label">This device label</span><input class="field" id="deviceLabel" placeholder="Mission Control — Desktop"></label>
 <div class="actions"><button class="btn primary" id="saveSyncBtn">Save Connection</button><button class="btn" id="syncNowBtn">Sync Now</button></div>
 <div class="item"><b id="syncStatus">Local mode</b><span id="syncDetail">Projects are currently stored on this device.</span></div>
 </div></div>
@@ -251,23 +264,27 @@ const storage={
   save(s){localStorage.setItem(KEY,JSON.stringify(s));queueProjectPush()}
 };
 let syncTimer=null,syncBusy=false;
+function defaultDeviceLabel(){return /iPhone|Android|Mobile/i.test(navigator.userAgent)?"Mission Control — Mobile":"Mission Control — Desktop"}
 function syncConfig(){try{return JSON.parse(localStorage.getItem(SYNC_KEY))||{}}catch(e){return {}}}
+function sourceLabel(){return syncConfig().deviceLabel||defaultDeviceLabel()}
+function stampProject(p,source=sourceLabel()){p.lastUpdate=today();p.lastUpdatedAt=new Date().toISOString();p.lastUpdatedBy=source}
 function setSyncStatus(title,detail){const a=document.getElementById("syncStatus"),b=document.getElementById("syncDetail");if(a)a.textContent=title;if(b)b.textContent=detail}
 function queueProjectPush(){const c=syncConfig();if(!c.url||!c.token||syncBusy)return;clearTimeout(syncTimer);syncTimer=setTimeout(()=>pushProjects(false),700)}
 async function pushProjects(showToast=true){
   const c=syncConfig();if(!c.url||!c.token){if(showToast)toast("Add the shared-data connection first");return}
-  syncBusy=true;setSyncStatus("Syncing…","Sending project updates to the shared Google Sheet.");
+  syncBusy=true;setSyncStatus("Syncing…","Merging project updates with the shared Google Sheet.");
   try{
-    const r=await fetch(c.url,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({token:c.token,projects:state.projects})});
+    const r=await fetch(c.url,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({token:c.token,projects:state.projects,source:sourceLabel()})});
     const x=await r.json();if(!x.ok)throw new Error(x.error||"Sync failed");
-    setSyncStatus("Connected","Projects sync to the shared Google Sheet. Last push: "+new Date().toLocaleTimeString());
+    if(Array.isArray(x.projects)){state.projects=x.projects.map(p=>migrate({projects:[p]}).projects[0]);localStorage.setItem(KEY,JSON.stringify(state));renderAll()}
+    setSyncStatus("Connected","Conflict-safe project sync active. Last push: "+new Date().toLocaleTimeString());
     if(showToast)toast("Projects synced");
   }catch(e){setSyncStatus("Sync problem",e.message||"Could not reach shared source");if(showToast)toast("Sync failed")}
   finally{syncBusy=false}
 }
 async function pullProjects(showToast=true){
   const c=syncConfig();if(!c.url||!c.token)return;
-  syncBusy=true;setSyncStatus("Syncing…","Checking the shared Google Sheet for project updates.");
+  syncBusy=true;setSyncStatus("Syncing…","Checking the shared Google Sheet for newer project updates.");
   try{
     const sep=c.url.includes("?")?"&":"?";const r=await fetch(c.url+sep+"token="+encodeURIComponent(c.token));
     const x=await r.json();if(!x.ok||!Array.isArray(x.projects))throw new Error(x.error||"Sync failed");
@@ -280,14 +297,14 @@ async function pullProjects(showToast=true){
 }
 async function syncNow(){await pullProjects(false);await pushProjects(false);toast("Mission Control synced")}
 function initSyncUI(){
-  const c=syncConfig(),u=document.getElementById("syncUrl"),t=document.getElementById("syncToken");
-  if(u)u.value=c.url||"";if(t)t.value=c.token||"";
+  const c=syncConfig(),u=document.getElementById("syncUrl"),t=document.getElementById("syncToken"),d=document.getElementById("deviceLabel");
+  if(u)u.value=c.url||"";if(t)t.value=c.token||"";if(d)d.value=c.deviceLabel||defaultDeviceLabel();
   if(c.url&&c.token){setSyncStatus("Connected","Shared project source configured. Refreshing…");pullProjects(false)}
   else setSyncStatus("Local mode","Add the Apps Script URL and token to share projects across devices.");
 }
 function saveSyncConfig(){
-  const url=document.getElementById("syncUrl").value.trim(),token=document.getElementById("syncToken").value.trim();
-  localStorage.setItem(SYNC_KEY,JSON.stringify({url,token}));initSyncUI();toast("Connection saved")
+  const url=document.getElementById("syncUrl").value.trim(),token=document.getElementById("syncToken").value.trim(),deviceLabel=document.getElementById("deviceLabel").value.trim()||defaultDeviceLabel();
+  localStorage.setItem(SYNC_KEY,JSON.stringify({url,token,deviceLabel}));initSyncUI();toast("Connection saved")
 }
 function migrate(x){
   x.actions=x.actions||[];x.inbox=x.inbox||[];x.activity=x.activity||[];x.completedActions=x.completedActions||[];
@@ -299,12 +316,37 @@ function today(){return new Date().toISOString().slice(0,10)}function days(a,b){
 function esc(s=""){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[m]))}
 function color(a){return {"Supportworks":"var(--sw)","Construction":"var(--construction)","Above the Mark OS":"var(--atm)","Dropshipping":"var(--drop)","Personal / Home":"var(--home)"}[a]||"var(--accent)"}
 function touchAge(p){return p.lastUpdate?Math.max(0,days(p.lastUpdate,today())):999}
+function stale(p){return p.status!=="Completed"&&p.status!=="Incubator / Someday"&&touchAge(p)>STALE_DAYS}
+function changeTime(p){return p.lastUpdatedAt||((p.lastUpdate||"1970-01-01")+"T12:00:00.000Z")}
+function attentionReasons(p){
+  const r=[];if(["Completed","Incubator / Someday"].includes(p.status)||p.attention==="Complete"||p.attention==="Parked")return r;
+  if(p.attention==="Needs John")r.push("Needs your attention");
+  if(p.deadline){const d=days(today(),p.deadline);if(d<0)r.push(`Deadline overdue ${Math.abs(d)}d`);else if(d<=3)r.push(d===0?"Deadline today":`Deadline in ${d}d`)}
+  if(p.milestoneDate){const d=days(today(),p.milestoneDate);if(d<0)r.push(`Milestone overdue ${Math.abs(d)}d`);else if(d<=2)r.push(d===0?"Milestone today":`Milestone in ${d}d`)}
+  if(p.followupDate&&days(today(),p.followupDate)<=0)r.push("Follow-up due");
+  if(p.attention==="Waiting"&&p.waitingSince&&days(p.waitingSince,today())>=5)r.push(`Waiting ${days(p.waitingSince,today())}d`);
+  if(stale(p))r.push(`Stale ${touchAge(p)}d`);
+  return r
+}
+function switchPage(name){
+  document.querySelectorAll(".nav button").forEach(x=>x.classList.toggle("active",x.dataset.page===name));
+  document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));
+  const page=document.getElementById("page-"+name);if(page)page.classList.add("active")
+}
+function showProjectSet(type,value=""){
+  search.value="";filterArea.value="";filterStatus.value="";filterAttention.value="";filterPriority.value="";quickFilter="All";
+  if(type==="attention")filterAttention.value=value;
+  if(type==="area"){filterArea.value=value}
+  if(type==="stale")quickFilter="Stale";
+  if(type==="today")quickFilter="Today Focus";
+  renderChips();renderProjects();switchPage("projects")
+}
 function attentionClass(a){return {"Needs John":"needs","Moving":"moving","Waiting":"waiting","Parked":"parked","Complete":"done"}[a]||""}
 function priorityScore(p){
   if(["Completed","Incubator / Someday"].includes(p.status)||p.attention==="Parked"||p.attention==="Complete")return-999;
   let s=0;if(p.attention==="Needs John")s+=100;if(p.status==="Today")s+=70;if(p.priority==="Critical")s+=60;if(p.priority==="High")s+=30;
   if(p.deadline){const d=days(today(),p.deadline);if(d<0)s+=60;else if(d<=3)s+=35;else if(d<=7)s+=15}
-  if(p.followupDate&&days(today(),p.followupDate)<=0)s+=20;if(touchAge(p)>STALE_DAYS&&p.status==="Active")s+=18;
+  if(p.milestoneDate){const m=days(today(),p.milestoneDate);if(m<0)s+=35;else if(m<=2)s+=22}if(p.followupDate&&days(today(),p.followupDate)<=0)s+=20;if(stale(p))s+=18;
   return s
 }
 function toast(msg){const t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1700)}
@@ -319,24 +361,34 @@ function ensureAction(p){
 function renderDate(){dateLine.textContent=new Date().toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric",year:"numeric"})+" • Executive operating system"}
 function renderHome(){
   const active=state.projects.filter(p=>p.status!=="Completed");
-  const needs=active.filter(p=>p.attention==="Needs John").length,moving=active.filter(p=>p.attention==="Moving").length,waiting=active.filter(p=>p.attention==="Waiting").length,changed=state.activity.filter(a=>a.ts.slice(0,10)>=new Date(Date.now()-86400000).toISOString().slice(0,10)).length;
+  const needs=active.filter(p=>p.attention==="Needs John").length,moving=active.filter(p=>p.attention==="Moving").length,waiting=active.filter(p=>p.attention==="Waiting").length,staleCount=active.filter(stale).length;
+  const changed=state.projects.filter(p=>Date.now()-new Date(changeTime(p)).getTime()<=24*3600*1000).length;
   heroGreeting.textContent=(new Date().getHours()<12?"Good morning.":new Date().getHours()<18?"Good afternoon.":"Good evening.");
-  heroSentence.textContent=`${needs} thing${needs===1?"":"s"} need you. ${moving} are moving. ${waiting} are waiting. ${changed} changed recently.`;
+  heroSentence.textContent=`${needs} thing${needs===1?"":"s"} need you. ${moving} are moving. ${waiting} are waiting. ${staleCount} are stale.`;
   heroGrid.innerHTML=[
-    [needs,"Need John","You are the current constraint."],
-    [moving,"Moving","Progressing without intervention."],
-    [waiting,"Waiting","Somebody or something else is the constraint."],
-    [changed,"Changed","Recent updates or completions."]
-  ].map(x=>`<div class="hero-stat"><div class="n">${x[0]}</div><div class="l">${x[1]}</div><div class="d">${x[2]}</div></div>`).join("");
+    [needs,"Need John","You are the current constraint.","attention","Needs John"],
+    [moving,"Moving","Progressing without intervention.","attention","Moving"],
+    [waiting,"Waiting","Somebody or something else is the constraint.","attention","Waiting"],
+    [staleCount,"Stale",`No update in more than ${STALE_DAYS} days.`,"stale",""],
+    [changed,"Changed","Updated in the last 24 hours.","changes",""]
+  ].map(x=>`<div class="hero-stat clickable" data-metric="${x[3]}" data-value="${esc(x[4])}"><div class="n">${x[0]}</div><div class="l">${x[1]}</div><div class="d">${x[2]}</div></div>`).join("");
+  document.querySelectorAll("[data-metric]").forEach(el=>el.onclick=()=>el.dataset.metric==="changes"?switchPage("changes"):showProjectSet(el.dataset.metric,el.dataset.value));
+
   const tops=state.projects.slice().sort((a,b)=>priorityScore(b)-priorityScore(a)).filter(p=>priorityScore(p)>0).slice(0,3);
-  priorityGrid.innerHTML=tops.map((p,i)=>`<div class="priority-card" style="border-top-color:${color(p.area)}"><div class="rank">#${i+1} • ${esc(p.area)}</div><h4>${esc(p.name)}</h4><p><b>Next:</b> ${esc(p.nextAction||"Define next action.")}</p></div>`).join("")||`<div class="item"><b>Nothing requires immediate attention.</b></div>`;
-  const yesterday=new Date(Date.now()-86400000).toISOString().slice(0,10);
-  const delta=state.activity.slice().filter(a=>a.ts.slice(0,10)>=yesterday).sort((a,b)=>b.ts.localeCompare(a.ts)).slice(0,6);
-  deltaGrid.innerHTML=delta.length?delta.map(a=>{const p=state.projects.find(x=>x.id===a.projectId);return `<div class="delta-card"><b>${esc(p?p.name:"Mission Control")}</b><small>${esc(a.text)} • ${new Date(a.ts).toLocaleString()}</small></div>`}).join(""):`<div class="delta-card"><b>No meaningful changes.</b><small>Your project state is stable.</small></div>`;
-  lanes.innerHTML=AREAS.map(a=>{const ps=active.filter(p=>p.area===a),n=ps.filter(p=>p.attention==="Needs John").length,m=ps.filter(p=>p.attention==="Moving").length,w=ps.filter(p=>p.attention==="Waiting").length;const next=ps.filter(p=>p.milestoneDate).sort((x,y)=>x.milestoneDate.localeCompare(y.milestoneDate))[0];return `<div class="lane" style="--area-color:${color(a)}"><h4>${esc(a)}</h4><div class="lane-stats"><div class="mini"><b>${n}</b><span>need you</span></div><div class="mini"><b>${m}</b><span>moving</span></div><div class="mini"><b>${w}</b><span>waiting</span></div></div><small>${next?"Next: "+esc(next.milestone||next.name)+" • "+next.milestoneDate:"No dated milestone"}</small></div>`}).join("");
+  priorityGrid.innerHTML=tops.map((p,i)=>`<div class="priority-card" data-open="${p.id}" style="border-top-color:${color(p.area)};cursor:pointer"><div class="rank">#${i+1} • ${esc(p.area)}</div><h4>${esc(p.name)}</h4><p><b>Next:</b> ${esc(p.nextAction||"Define next action.")}</p><div class="focus-reason">${esc(attentionReasons(p).slice(0,3).join(" • "))}</div></div>`).join("")||`<div class="item"><b>Nothing requires immediate attention.</b></div>`;
+  document.querySelectorAll("[data-open]").forEach(el=>el.onclick=()=>openProject(el.dataset.open));
+
+  const recent=state.projects.slice().sort((a,b)=>changeTime(b).localeCompare(changeTime(a))).slice(0,6);
+  deltaGrid.innerHTML=recent.length?recent.map(p=>`<div class="delta-card clickable" data-change="${p.id}"><b>${esc(p.name)}</b><small>${esc(p.currentState||p.nextAction||"Project updated")} • ${new Date(changeTime(p)).toLocaleString()}</small><span class="change-source">${esc(p.lastUpdatedBy||"Previous data")}</span></div>`).join(""):`<div class="delta-card"><b>No meaningful changes.</b><small>Your project state is stable.</small></div>`;
+  document.querySelectorAll("[data-change]").forEach(el=>el.onclick=()=>openProject(el.dataset.change));
+
+  lanes.innerHTML=AREAS.map(a=>{const ps=active.filter(p=>p.area===a),n=ps.filter(p=>p.attention==="Needs John").length,m=ps.filter(p=>p.attention==="Moving").length,w=ps.filter(p=>p.attention==="Waiting").length;const next=ps.filter(p=>p.milestoneDate).sort((x,y)=>x.milestoneDate.localeCompare(y.milestoneDate))[0];return `<div class="lane" style="--area-color:${color(a)}"><h4>${esc(a)}</h4><div class="lane-stats"><div class="mini clickable" data-area="${esc(a)}" data-attn="Needs John"><b>${n}</b><span>need you</span></div><div class="mini clickable" data-area="${esc(a)}" data-attn="Moving"><b>${m}</b><span>moving</span></div><div class="mini clickable" data-area="${esc(a)}" data-attn="Waiting"><b>${w}</b><span>waiting</span></div></div><small>${next?"Next: "+esc(next.milestone||next.name)+" • "+next.milestoneDate:"No dated milestone"}</small></div>`}).join("");
+  document.querySelectorAll("[data-area][data-attn]").forEach(el=>el.onclick=()=>{search.value="";filterArea.value=el.dataset.area;filterAttention.value=el.dataset.attn;filterStatus.value="";filterPriority.value="";quickFilter="All";renderChips();renderProjects();switchPage("projects")});
+
   const alerts=[];
-  active.forEach(p=>{if(p.status==="Active"&&touchAge(p)>STALE_DAYS)alerts.push({p,text:`Stale — untouched ${touchAge(p)} days`});if(p.followupDate&&days(today(),p.followupDate)<0)alerts.push({p,text:`Follow-up overdue by ${Math.abs(days(today(),p.followupDate))} day(s)`});if(p.attention==="Waiting"&&p.waitingSince&&days(p.waitingSince,today())>=5)alerts.push({p,text:`Waiting ${days(p.waitingSince,today())} days on ${p.waitingOn||"dependency"}`});if(p.deadline&&days(today(),p.deadline)>=0&&days(today(),p.deadline)<=3)alerts.push({p,text:`Deadline in ${days(today(),p.deadline)} day(s)`})});
-  radar.innerHTML=alerts.length?alerts.slice(0,10).map(a=>`<div class="item"><b>${esc(a.p.name)}</b><span>${esc(a.text)}</span></div>`).join(""):`<div class="item"><b>Nothing important is falling through the cracks.</b><span>No stale, overdue, or aging dependency alerts.</span></div>`;
+  active.forEach(p=>{if(stale(p))alerts.push({p,text:`Stale — untouched ${touchAge(p)} days`});if(p.followupDate&&days(today(),p.followupDate)<0)alerts.push({p,text:`Follow-up overdue by ${Math.abs(days(today(),p.followupDate))} day(s)`});if(p.attention==="Waiting"&&p.waitingSince&&days(p.waitingSince,today())>=5)alerts.push({p,text:`Waiting ${days(p.waitingSince,today())} days on ${p.waitingOn||"dependency"}`});if(p.deadline&&days(today(),p.deadline)>=0&&days(today(),p.deadline)<=3)alerts.push({p,text:`Deadline in ${days(today(),p.deadline)} day(s)`})});
+  radar.innerHTML=alerts.length?alerts.slice(0,10).map(a=>`<div class="item" data-radar="${a.p.id}" style="cursor:pointer"><b>${esc(a.p.name)}</b><span>${esc(a.text)}</span></div>`).join(""):`<div class="item"><b>Nothing important is falling through the cracks.</b><span>No stale, overdue, or aging dependency alerts.</span></div>`;
+  document.querySelectorAll("[data-radar]").forEach(el=>el.onclick=()=>openProject(el.dataset.radar))
 }
 function populateFilters(){
   filterArea.innerHTML='<option value="">All areas</option>'+AREAS.map(x=>`<option>${x}</option>`).join("");
@@ -345,12 +397,12 @@ function populateFilters(){
   filterPriority.innerHTML='<option value="">All priorities</option>'+PRIORITIES.map(x=>`<option>${x}</option>`).join("");
   pArea.innerHTML=AREAS.map(x=>`<option>${x}</option>`).join("");pStatus.innerHTML=STATUSES.map(x=>`<option>${x}</option>`).join("");pPriority.innerHTML=PRIORITIES.map(x=>`<option>${x}</option>`).join("");pAttention.innerHTML=ATTENTION.map(x=>`<option>${x}</option>`).join("");uStatus.innerHTML=STATUSES.map(x=>`<option>${x}</option>`).join("");uAttention.innerHTML=ATTENTION.map(x=>`<option>${x}</option>`).join("");
 }
-function renderChips(){const ls=["All","Needs John","Moving","Waiting","Stale","Upcoming","Incubator"];projectChips.innerHTML=ls.map(x=>`<button class="chip ${quickFilter===x?"active":""}" data-q="${x}">${x}</button>`).join("");document.querySelectorAll("[data-q]").forEach(b=>b.onclick=()=>{quickFilter=b.dataset.q;renderChips();renderProjects()})}
+function renderChips(){const ls=["All","Today Focus","Needs John","Moving","Waiting","Stale","Upcoming","Incubator"];projectChips.innerHTML=ls.map(x=>`<button class="chip ${quickFilter===x?"active":""}" data-q="${x}">${x}</button>`).join("");document.querySelectorAll("[data-q]").forEach(b=>b.onclick=()=>{quickFilter=b.dataset.q;renderChips();renderProjects()})}
 function filteredProjects(){
-  const q=search.value.trim().toLowerCase();return state.projects.filter(p=>{if(filterArea.value&&p.area!==filterArea.value)return false;if(filterStatus.value&&p.status!==filterStatus.value)return false;if(filterAttention.value&&p.attention!==filterAttention.value)return false;if(filterPriority.value&&p.priority!==filterPriority.value)return false;if(quickFilter==="Needs John"&&p.attention!=="Needs John")return false;if(quickFilter==="Moving"&&p.attention!=="Moving")return false;if(quickFilter==="Waiting"&&p.attention!=="Waiting")return false;if(quickFilter==="Stale"&&!(p.status==="Active"&&touchAge(p)>STALE_DAYS))return false;if(quickFilter==="Upcoming"&&p.status!=="Upcoming")return false;if(quickFilter==="Incubator"&&p.status!=="Incubator / Someday")return false;if(q){const dep=state.projects.find(x=>x.id===p.dependencyId);const hay=[p.name,p.area,p.status,p.attention,p.priority,p.description,p.outcome,p.doneDefinition,p.currentState,p.nextAction,p.owner,p.waitingOn,p.notes,(p.tags||[]).join(" "),dep?dep.name:""].join(" ").toLowerCase();if(!hay.includes(q))return false}return true})}
+  const q=search.value.trim().toLowerCase();return state.projects.filter(p=>{if(filterArea.value&&p.area!==filterArea.value)return false;if(filterStatus.value&&p.status!==filterStatus.value)return false;if(filterAttention.value&&p.attention!==filterAttention.value)return false;if(filterPriority.value&&p.priority!==filterPriority.value)return false;if(quickFilter==="Today Focus"&&attentionReasons(p).length===0)return false;if(quickFilter==="Needs John"&&p.attention!=="Needs John")return false;if(quickFilter==="Moving"&&p.attention!=="Moving")return false;if(quickFilter==="Waiting"&&p.attention!=="Waiting")return false;if(quickFilter==="Stale"&&!stale(p))return false;if(quickFilter==="Upcoming"&&p.status!=="Upcoming")return false;if(quickFilter==="Incubator"&&p.status!=="Incubator / Someday")return false;if(q){const dep=state.projects.find(x=>x.id===p.dependencyId);const hay=[p.name,p.area,p.status,p.attention,p.priority,p.description,p.outcome,p.doneDefinition,p.currentState,p.nextAction,p.owner,p.waitingOn,p.notes,(p.tags||[]).join(" "),dep?dep.name:""].join(" ").toLowerCase();if(!hay.includes(q))return false}return true})}
 function renderProjects(){
   const ps=filteredProjects().sort((a,b)=>priorityScore(b)-priorityScore(a));projectCount.textContent=`${ps.length} shown`;
-  projectBoard.innerHTML=ps.length?ps.map(p=>{const age=touchAge(p),ageClass=age>20?"bad":age>10?"warn":"";const dep=state.projects.find(x=>x.id===p.dependencyId);return `<article class="card" data-id="${p.id}"><div class="card-top"><div><h4>${esc(p.name)}</h4><div class="badges"><span class="badge">${esc(p.area)}</span><span class="badge ${attentionClass(p.attention)}">${esc(p.attention)}</span><span class="badge">${esc(p.status)}</span><span class="badge">${esc(p.priority)}</span></div></div><button class="btn ghost edit" data-id="${p.id}">Edit</button></div><div class="desc">${esc(p.description||"")}</div><div class="state"><b>Where we are:</b> ${esc(p.currentState||"—")}</div><div class="next"><b>Current next action</b>${esc(p.nextAction||"Define next action.")}</div><div class="meta"><div>Owner<b>${esc(p.owner||"—")}</b></div><div>Last touched<b class="age ${ageClass}">${age}d ago</b></div><div>Waiting on<b>${esc(p.waitingOn||"Nothing")}</b></div><div>Dependency<b>${esc(dep?dep.name:"None")}</b></div></div><div class="progress"><div style="width:${Math.max(0,Math.min(100,Number(p.progress)||0))}%"></div></div></article>`}).join(""):`<div class="item"><b>No matching projects.</b></div>`;
+  projectBoard.innerHTML=ps.length?ps.map(p=>{const age=touchAge(p),ageClass=age>20?"bad":age>10?"warn":"";const dep=state.projects.find(x=>x.id===p.dependencyId);return `<article class="card" data-id="${p.id}"><div class="card-top"><div><h4>${esc(p.name)}</h4><div class="badges"><span class="badge">${esc(p.area)}</span><span class="badge ${attentionClass(p.attention)}">${esc(p.attention)}</span><span class="badge">${esc(p.status)}</span><span class="badge">${esc(p.priority)}</span>${stale(p)?`<span class="badge waiting">Stale ${touchAge(p)}d</span>`:""}</div></div><button class="btn ghost edit" data-id="${p.id}">Edit</button></div><div class="desc">${esc(p.description||"")}</div><div class="state"><b>Where we are:</b> ${esc(p.currentState||"—")}</div><div class="next"><b>Current next action</b>${esc(p.nextAction||"Define next action.")}</div><div class="meta"><div>Owner<b>${esc(p.owner||"—")}</b></div><div>Last touched<b class="age ${ageClass}">${age}d ago • ${esc(p.lastUpdatedBy||"Previous data")}</b></div><div>Waiting on<b>${esc(p.waitingOn||"Nothing")}</b></div><div>Dependency<b>${esc(dep?dep.name:"None")}</b></div></div><div class="progress"><div style="width:${Math.max(0,Math.min(100,Number(p.progress)||0))}%"></div></div></article>`}).join(""):`<div class="item"><b>No matching projects.</b></div>`;
   document.querySelectorAll(".edit").forEach(b=>b.onclick=e=>{e.stopPropagation();openProject(b.dataset.id)});document.querySelectorAll(".card").forEach(c=>c.onclick=e=>{if(!e.target.closest(".edit"))openProject(c.dataset.id)})
 }
 function renderActions(){
@@ -376,7 +428,7 @@ function renderWeekly(){
   reviewGrid.innerHTML=ps.map(p=>`<div class="review-card"><h4>${esc(p.name)}</h4><div class="badges"><span class="badge ${attentionClass(p.attention)}">${esc(p.attention)}</span><span class="badge">${touchAge(p)}d since update</span></div><p class="desc">${esc(p.outcome||p.description||"")}</p><div class="next"><b>Next</b>${esc(p.nextAction||"No next action defined.")}</div><div class="review-actions"><button class="btn" data-review="${p.id}" data-act="continue">Continue</button><button class="btn" data-review="${p.id}" data-act="needs">Needs Me</button><button class="btn" data-review="${p.id}" data-act="wait">Wait</button><button class="btn" data-review="${p.id}" data-act="park">Park</button><button class="btn" data-review="${p.id}" data-act="complete">Complete</button><button class="btn danger" data-review="${p.id}" data-act="kill">Kill</button></div></div>`).join("");
   document.querySelectorAll("[data-review]").forEach(b=>b.onclick=()=>applyReview(b.dataset.review,b.dataset.act))
 }
-function applyReview(id,act){const p=state.projects.find(x=>x.id===id);if(!p)return;if(act==="continue"){p.status="Active";p.attention="Moving"}if(act==="needs"){p.status="Today";p.attention="Needs John"}if(act==="wait"){p.status="Waiting / Blocked";p.attention="Waiting"}if(act==="park"){p.status="Incubator / Someday";p.attention="Parked"}if(act==="complete"){p.status="Completed";p.attention="Complete";p.progress=100}if(act==="kill"){p.status="Completed";p.attention="Complete";p.notes=(p.notes||"")+"\nKilled during weekly review."}p.lastUpdate=today();log("weekly_review",p.id,`Weekly review: ${act}`);storage.save(state);renderAll();toast("Weekly review updated")}
+function applyReview(id,act){const p=state.projects.find(x=>x.id===id);if(!p)return;if(act==="continue"){p.status="Active";p.attention="Moving"}if(act==="needs"){p.status="Today";p.attention="Needs John"}if(act==="wait"){p.status="Waiting / Blocked";p.attention="Waiting"}if(act==="park"){p.status="Incubator / Someday";p.attention="Parked"}if(act==="complete"){p.status="Completed";p.attention="Complete";p.progress=100}if(act==="kill"){p.status="Completed";p.attention="Complete";p.notes=(p.notes||"")+"\nKilled during weekly review."}stampProject(p);log("weekly_review",p.id,`Weekly review: ${act}`);storage.save(state);renderAll();toast("Weekly review updated")}
 function renderWins(){
   const weekAgo=new Date(Date.now()-7*86400000).toISOString();const ca=state.completedActions.filter(a=>a.completedAt>=weekAgo);const cp=state.projects.filter(p=>p.status==="Completed"&&p.lastUpdate>=weekAgo.slice(0,10));const cleared=state.activity.filter(a=>a.ts>=weekAgo&&/waiting|block/i.test(a.text)&&/clear|resolved|done/i.test(a.text));const advanced=state.activity.filter(a=>a.ts>=weekAgo&&["update","weekly_review"].includes(a.type));
   winGrid.innerHTML=[[ca.length,"Actions completed"],[cp.length,"Projects completed"],[advanced.length,"Project advances"],[cleared.length,"Blockers cleared"]].map(x=>`<div class="win"><div class="n">${x[0]}</div><div class="l">${x[1]}</div></div>`).join("");
@@ -387,7 +439,17 @@ function renderDependencies(){
   const deps=state.projects.filter(p=>p.dependencyId).map(p=>({down:p,up:state.projects.find(x=>x.id===p.dependencyId)})).filter(x=>x.up);
   dependencyList.innerHTML=deps.length?deps.map(x=>`<div class="dep-row"><div><b>${esc(x.down.name)}</b><small>${esc(x.down.attention)}</small></div><div class="arrow">depends on →</div><div><b>${esc(x.up.name)}</b><small>${esc(x.up.status)}</small></div></div>`).join(""):`<div class="item"><b>No dependencies defined.</b></div>`
 }
-function renderAll(){renderDate();renderHome();renderChips();renderProjects();renderActions();renderInbox();renderWeekly();renderWins();renderDependencies()}
+function renderToday(){
+  const ps=state.projects.filter(p=>attentionReasons(p).length).sort((a,b)=>priorityScore(b)-priorityScore(a));
+  todayList.innerHTML=ps.length?ps.map((p,i)=>`<div class="focus-card" data-today="${p.id}"><div class="rank">#${i+1} • ${esc(p.area)} • ${esc(p.priority)}</div><h4 style="margin:5px 0">${esc(p.name)}</h4><div>${esc(p.nextAction||"Define next action.")}</div><div class="focus-reason">${esc(attentionReasons(p).join(" • "))}</div></div>`).join(""):`<div class="item"><b>Nothing requires attention today.</b></div>`;
+  document.querySelectorAll("[data-today]").forEach(el=>el.onclick=()=>openProject(el.dataset.today))
+}
+function renderChanges(){
+  const ps=state.projects.slice().sort((a,b)=>changeTime(b).localeCompare(changeTime(a)));
+  changesList.innerHTML=ps.length?ps.map(p=>`<div class="item" data-changed-project="${p.id}" style="cursor:pointer"><b>${esc(p.name)}</b><span>${new Date(changeTime(p)).toLocaleString()} • ${esc(p.lastUpdatedBy||"Previous data")}</span><small>${esc(p.currentState||p.nextAction||"Project updated")}</small></div>`).join(""):`<div class="item"><b>No project changes yet.</b></div>`;
+  document.querySelectorAll("[data-changed-project]").forEach(el=>el.onclick=()=>openProject(el.dataset.changedProject))
+}
+function renderAll(){renderDate();renderHome();renderToday();renderChanges();renderChips();renderProjects();renderActions();renderInbox();renderWeekly();renderWins();renderDependencies()}
 function openModal(id){document.getElementById(id).classList.add("show")}function closeModal(id){document.getElementById(id).classList.remove("show")}
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>closeModal(b.dataset.close));
 function openProject(id="",prefill=""){
@@ -397,7 +459,7 @@ function openProject(id="",prefill=""){
 }
 function saveProjectData(){
   let p=state.projects.find(x=>x.id===pId.value),isNew=!p;if(!p){p={id:"p"+Date.now()};state.projects.push(p)}
-  Object.assign(p,{name:pName.value.trim()||"Untitled Project",area:pArea.value,status:pStatus.value,priority:pPriority.value,attention:pAttention.value,owner:pOwner.value.trim()||"John",description:pDesc.value.trim(),outcome:pOutcome.value.trim(),doneDefinition:pDoneDef.value.trim(),currentState:pCurrent.value.trim(),nextAction:pNext.value.trim(),waitingOn:pWaiting.value.trim(),waitingSince:pWaitingSince.value,followupDate:pFollow.value,deadline:pDeadline.value,milestone:pMilestone.value.trim(),milestoneDate:pMilestoneDate.value,progress:Number(pProgress.value)||0,dependencyId:pDependency.value,tags:pTags.value.split(",").map(x=>x.trim()).filter(Boolean),notes:pNotes.value.trim(),lastUpdate:today()});
+  Object.assign(p,{name:pName.value.trim()||"Untitled Project",area:pArea.value,status:pStatus.value,priority:pPriority.value,attention:pAttention.value,owner:pOwner.value.trim()||"John",description:pDesc.value.trim(),outcome:pOutcome.value.trim(),doneDefinition:pDoneDef.value.trim(),currentState:pCurrent.value.trim(),nextAction:pNext.value.trim(),waitingOn:pWaiting.value.trim(),waitingSince:pWaitingSince.value,followupDate:pFollow.value,deadline:pDeadline.value,milestone:pMilestone.value.trim(),milestoneDate:pMilestoneDate.value,progress:Number(pProgress.value)||0,dependencyId:pDependency.value,tags:pTags.value.split(",").map(x=>x.trim()).filter(Boolean),notes:pNotes.value.trim()});stampProject(p);
   ensureAction(p);log(isNew?"project_create":"project_edit",p.id,isNew?"Project created.":"Project edited.");storage.save(state);closeModal("projectModal");renderAll();toast(isNew?"Project created":"Project saved")
 }
 function deleteProjectData(){const id=pId.value;if(!id)return;if(confirm("Delete this project?")){state.projects=state.projects.filter(p=>p.id!==id);state.actions=state.actions.filter(a=>a.projectId!==id);state.activity=state.activity.filter(a=>a.projectId!==id);state.projects.forEach(p=>{if(p.dependencyId===id)p.dependencyId=""});storage.save(state);closeModal("projectModal");renderAll();toast("Project deleted")}}
@@ -412,12 +474,12 @@ function interpret(){
 }
 function saveUpdateData(){
   const p=state.projects.find(x=>x.id===uProject.value);if(!p)return;const priorWait=p.waitingOn;
-  p.status=uStatus.value;p.attention=uAttention.value;p.currentState=uCurrent.value.trim();p.nextAction=uNext.value.trim();p.waitingOn=uWaiting.value.trim();p.followupDate=uFollow.value;p.progress=Number(uProgress.value)||0;p.lastUpdate=today();if(p.waitingOn&&!priorWait&&!p.waitingSince)p.waitingSince=today();if(!p.waitingOn)p.waitingSince="";ensureAction(p);log("update",p.id,uText.value.trim()||"Project updated.");storage.save(state);closeModal("updateModal");renderAll();toast("Project updated")
+  p.status=uStatus.value;p.attention=uAttention.value;p.currentState=uCurrent.value.trim();p.nextAction=uNext.value.trim();p.waitingOn=uWaiting.value.trim();p.followupDate=uFollow.value;p.progress=Number(uProgress.value)||0;stampProject(p);if(p.waitingOn&&!priorWait&&!p.waitingSince)p.waitingSince=today();if(!p.waitingOn)p.waitingSince="";ensureAction(p);log("update",p.id,uText.value.trim()||"Project updated.");storage.save(state);closeModal("updateModal");renderAll();toast("Project updated")
 }
-function exportData(){const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="mission-control-v3-data.json";a.click();URL.revokeObjectURL(a.href)}
+function exportData(){const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="mission-control-v5-data.json";a.click();URL.revokeObjectURL(a.href)}
 function importData(file){const r=new FileReader();r.onload=()=>{try{const x=migrate(JSON.parse(r.result));if(!Array.isArray(x.projects))throw 0;state=x;storage.save(state);renderAll();toast("Data imported")}catch(e){alert("Invalid Mission Control export.")}};r.readAsText(file)}
 
-document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll(".nav button").forEach(x=>x.classList.remove("active"));document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));b.classList.add("active");document.getElementById("page-"+b.dataset.page).classList.add("active")});
+document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>switchPage(b.dataset.page));
 newProjectBtn.onclick=()=>openProject();quickUpdateBtn.onclick=()=>openUpdate();captureBtn.onclick=()=>openModal("captureModal");
 saveProject.onclick=saveProjectData;deleteProject.onclick=deleteProjectData;uProject.onchange=loadUpdate;interpretUpdate.onclick=interpret;saveUpdate.onclick=saveUpdateData;
 saveCapture.onclick=()=>{addCapture(captureText.value);captureText.value=""};captureModalSave.onclick=()=>{addCapture(captureModalText.value);captureModalText.value="";closeModal("captureModal")};
