@@ -1,0 +1,41 @@
+(()=>{
+const QUEUE_OPEN='[[FINANCE_REVIEW_QUEUE]]',QUEUE_CLOSE='[[/FINANCE_REVIEW_QUEUE]]';
+const frame=document.getElementById('core');
+function d(){return frame&&frame.contentDocument}function w(){return frame&&frame.contentWindow}
+function esc(v=''){return String(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
+function key(x){return [x.date||'',String(x.description||'').trim().toLowerCase(),Number(x.amount||0).toFixed(2)].join('|')}
+function getQueue(){try{return w().eval(`(()=>{const p=state.projects.find(x=>x.id==='family');if(!p)return[];const n=String(p.notes||'');const a=n.indexOf(${JSON.stringify(QUEUE_OPEN)}),b=n.indexOf(${JSON.stringify(QUEUE_CLOSE)});if(a<0||b<a)return[];try{return JSON.parse(n.slice(a+${QUEUE_OPEN.length},b))||[]}catch(e){return[]}})()`)}catch(e){return[]}}
+function installApi(){const doc=d();if(!doc||w().__mcSaveFinanceExplanation)return;const s=doc.createElement('script');s.textContent=`
+window.__mcSaveFinanceExplanation=async function(payload){
+  try{
+    const OPEN=${JSON.stringify(QUEUE_OPEN)},CLOSE=${JSON.stringify(QUEUE_CLOSE)};
+    const p=state.projects.find(x=>x.id==='family');if(!p)throw new Error('Family project missing');
+    let notes=String(p.notes||''),queue=[];const a=notes.indexOf(OPEN),b=notes.indexOf(CLOSE);
+    if(a>=0&&b>a){try{queue=JSON.parse(notes.slice(a+OPEN.length,b))||[]}catch(e){queue=[]};notes=(notes.slice(0,a)+notes.slice(b+CLOSE.length)).trim()}
+    const k=[payload.date||'',String(payload.description||'').trim().toLowerCase(),Number(payload.amount||0).toFixed(2)].join('|');
+    const item={date:payload.date||'',description:payload.description||'',amount:Number(payload.amount||0),category:payload.category||'',reason:payload.reason||'',explanation:String(payload.explanation||'').trim(),submittedAt:new Date().toISOString(),key:k};
+    const ix=queue.findIndex(x=>x.key===k);if(ix>=0)queue[ix]=item;else queue.push(item);
+    p.notes=(notes?notes+'\\n\\n':'')+OPEN+JSON.stringify(queue)+CLOSE;
+    p.lastUpdate=today();p.lastUpdatedAt=new Date().toISOString();p.lastUpdatedBy='Mission Control Finance Review';
+    localStorage.setItem(KEY,JSON.stringify(state));renderAll();
+    setSyncStatus('Syncing…','Saving transaction explanation to private Mission Control data.');
+    const ok=await pushProjects(false);if(ok){setSyncStatus('Connected','Transaction explanation saved for budget curation.');return true}
+    return false
+  }catch(e){return false}
+};`;
+doc.body.appendChild(s)}
+function installUi(){const doc=d();if(!doc||!doc.getElementById('page-finances'))return false;installApi();
+if(!doc.getElementById('finReviewInteractiveStyle')){const st=doc.createElement('style');st.id='finReviewInteractiveStyle';st.textContent=`
+.fin-review.fin-click{cursor:pointer;transition:.15s ease;position:relative}.fin-review.fin-click:hover{border-color:#5e82a8;transform:translateY(-1px)}.fin-review.fin-click:after{content:'Explain';position:absolute;right:9px;top:7px;font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#7fc8ff}.fin-review.fin-saved{border-color:#34654b;background:#10261b}.fin-review.fin-saved:after{content:'Saved';color:#62d89a}.fin-review-note{grid-column:1/-1;color:#9ce1b8;font-size:10px;margin-top:2px}.fin-review-modal .txn{background:#091525;border:1px solid #203550;border-radius:11px;padding:11px;margin-bottom:12px}.fin-review-modal .txn b{display:block;font-size:15px}.fin-review-modal .txn span{display:block;color:var(--muted);font-size:11px;margin-top:3px}.fin-review-modal textarea{min-height:130px}.fin-review-help{font-size:11px;color:var(--muted);line-height:1.5;margin:8px 0 0}.fin-review-saved-banner{background:#13291f;border:1px solid #34654b;color:#9ce1b8;border-radius:10px;padding:9px;font-size:11px;margin-bottom:10px}
+`;doc.head.appendChild(st)}
+if(!doc.getElementById('finReviewModal')){const wrap=doc.createElement('div');wrap.innerHTML=`<div class="modal-backdrop" id="finReviewModal"><div class="modal fin-review-modal"><h2>Explain Transaction</h2><div class="sub">Tell Mission Control what this transaction actually was. Plain English is fine.</div><div id="finReviewSavedBanner"></div><div class="txn" id="finReviewTxn"></div><label class="label">Your explanation</label><textarea class="field" id="finReviewExplanation" placeholder="Example: This was cash for Caleb's tournament fees, so treat it as Family & Kids. Or: This transfer was moving money to savings, not spending."></textarea><div class="fin-review-help">Your explanation is saved into the private Mission Control sync. The morning budget curation will use it as user-confirmed evidence to resolve the transaction, update its notes/category when appropriate, and remove it from the review queue.</div><div class="modal-actions"><button class="btn" id="finReviewCancel">Cancel</button><button class="btn primary" id="finReviewSave">Save Explanation</button></div></div></div>`;doc.body.appendChild(wrap.firstElementChild)}
+const modal=doc.getElementById('finReviewModal');doc.getElementById('finReviewCancel').onclick=()=>modal.classList.remove('show');modal.onclick=e=>{if(e.target===modal)modal.classList.remove('show')};return true}
+function bindReviews(){if(!installUi())return;const doc=d(),snap=w().__mcFinanceSnapshot?w().__mcFinanceSnapshot():null;if(!snap)return;const queue=getQueue(),map=new Map(queue.map(x=>[x.key||key(x),x]));const container=doc.getElementById('finReview');if(!container)return;const rows=[...container.querySelectorAll('.fin-review')],items=snap.reviewItems||[];
+rows.forEach((row,i)=>{const item=items[i];if(!item)return;const saved=map.get(key(item));row.classList.add('fin-click');row.classList.toggle('fin-saved',!!saved);if(saved&&!row.querySelector('.fin-review-note'))row.insertAdjacentHTML('beforeend',`<div class="fin-review-note">Explanation saved: ${esc(saved.explanation)} • waiting for curation</div>`);row.onclick=()=>open(item,saved)});
+}
+function open(item,saved){const doc=d(),modal=doc.getElementById('finReviewModal');doc.getElementById('finReviewTxn').innerHTML=`<b>${esc(item.description)}</b><span>${esc(item.date)} • ${new Intl.NumberFormat(undefined,{style:'currency',currency:'USD'}).format(Number(item.amount||0))} • ${esc(item.category||'')}</span><span>Why flagged: ${esc(item.reason||'Needs review')}</span>`;doc.getElementById('finReviewExplanation').value=saved?saved.explanation:'';doc.getElementById('finReviewSavedBanner').innerHTML=saved?'<div class="fin-review-saved-banner">You already explained this one. Saving again will replace the prior explanation.</div>':'';modal.dataset.item=JSON.stringify(item);modal.classList.add('show');setTimeout(()=>doc.getElementById('finReviewExplanation').focus(),50)}
+async function save(){const doc=d(),modal=doc.getElementById('finReviewModal'),btn=doc.getElementById('finReviewSave'),ex=doc.getElementById('finReviewExplanation').value.trim();if(!ex){doc.getElementById('finReviewExplanation').focus();return}let item;try{item=JSON.parse(modal.dataset.item||'{}')}catch(e){return}btn.disabled=true;btn.textContent='Saving…';const ok=await w().__mcSaveFinanceExplanation({...item,explanation:ex});btn.disabled=false;btn.textContent='Save Explanation';if(ok){modal.classList.remove('show');setTimeout(()=>{if(typeof window.renderFinance==='function')window.renderFinance();bindReviews();if(w().toast)w().toast('Explanation saved for curation')},300)}else{doc.getElementById('finReviewSavedBanner').innerHTML='<div class="fin-review-saved-banner" style="background:#351a24;border-color:#5a2a39;color:#ffdce4">Saved locally, but private sync did not complete. Check Data & Sync, then try again.</div>'}}
+function hook(){if(!installUi())return false;const doc=d();const btn=doc.getElementById('finReviewSave');if(btn&&!btn.dataset.bound){btn.dataset.bound='1';btn.onclick=save}bindReviews();return true}
+frame.addEventListener('load',()=>{let n=0;const t=setInterval(()=>{n++;if(hook()){clearInterval(t);setTimeout(bindReviews,1500);setTimeout(bindReviews,4000);setInterval(bindReviews,3000)}else if(n>50)clearInterval(t)},150)});
+if(frame.contentDocument&&frame.contentDocument.readyState==='complete')setTimeout(hook,250);
+})();
