@@ -39,3 +39,61 @@ function hook(){if(!installUi())return false;const doc=d();const btn=doc.getElem
 frame.addEventListener('load',()=>{let n=0;const t=setInterval(()=>{n++;if(hook()){clearInterval(t);setTimeout(bindReviews,1500);setTimeout(bindReviews,4000);setInterval(bindReviews,3000)}else if(n>50)clearInterval(t)},150)});
 if(frame.contentDocument&&frame.contentDocument.readyState==='complete')setTimeout(hook,250);
 })();
+
+(()=>{
+const frame=document.getElementById('core');
+function d(){return frame&&frame.contentDocument}function w(){return frame&&frame.contentWindow}
+function esc(v=''){return String(v).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
+function money(v){if(v===null||v===undefined||Number.isNaN(Number(v)))return '—';return new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:2}).format(Number(v))}
+function dateLabel(v){if(!v)return 'Unknown';return new Date(v+'T12:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}
+const CSS=`
+.bud-hero{background:linear-gradient(180deg,rgba(31,45,70,.98),rgba(12,27,46,.98));border-color:#3c587b}.bud-actions{display:flex;gap:8px;flex-wrap:wrap}.bud-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:14px}.bud-stat{background:#091525;border:1px solid #29425f;border-radius:14px;padding:12px}.bud-stat .n{font-size:28px;font-weight:900;letter-spacing:-.035em}.bud-stat .l{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-top:3px}.bud-stat .d{font-size:11px;color:#c7d3e1;margin-top:3px}.bud-stat.good .n{color:var(--good)}.bud-stat.warn .n{color:var(--warn)}.bud-stat.bad .n{color:var(--bad)}
+.bud-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.bud-cat{background:#0d1a2c;border:1px solid var(--line);border-radius:14px;padding:12px}.bud-cat.over{border-color:#744040;background:#201417}.bud-cat.watch{border-color:#725c2b}.bud-cat.inactive{opacity:.7}.bud-cat-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.bud-cat h4{margin:0;font-size:14px}.bud-amt{font-size:12px;color:#dbe6f0;margin-top:3px}.bud-rem{text-align:right;font-size:11px;color:var(--muted)}.bud-status{font-weight:850;margin-top:3px}.bud-status.good{color:var(--good)}.bud-status.warn{color:var(--warn)}.bud-status.bad{color:var(--bad)}.bud-status.muted{color:var(--muted)}.bud-track{height:8px;border-radius:999px;background:#07111e;border:1px solid #1c314b;margin-top:10px;overflow:hidden}.bud-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#62d89a,#7fc8ff)}.bud-cat.watch .bud-fill{background:var(--warn)}.bud-cat.over .bud-fill{background:var(--bad)}
+.bud-cash{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:10px}.bud-cash-card{background:#091525;border:1px solid #29425f;border-radius:12px;padding:11px}.bud-cash-card b{display:block;font-size:22px}.bud-cash-card span{font-size:10px;color:var(--muted)}.bud-outside{display:flex;flex-direction:column;gap:8px;margin-top:9px}.bud-outside-row{background:#211a10;border:1px solid #6b5730;border-radius:11px;padding:10px}.bud-outside-row b{display:block}.bud-outside-row span{font-size:11px;color:#e6d4aa}.bud-privacy{font-size:10px;color:var(--muted);line-height:1.5}
+@media(max-width:1100px){.bud-summary{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:760px){.bud-grid{grid-template-columns:1fr}.bud-cash{grid-template-columns:1fr 1fr}.bud-summary{grid-template-columns:1fr 1fr}}
+@media(max-width:430px){.bud-cash{grid-template-columns:1fr}.bud-stat .n{font-size:23px}.bud-cat-top{gap:8px}}
+`;
+const HTML=`
+<section class="page" id="page-budget">
+  <div class="hero bud-hero">
+    <div class="hero-top"><div><h2>Monthly Budget</h2><div class="hero-sub">What we planned, what we have spent, and what is still safe to use.</div></div><div class="bud-actions"><button class="btn" id="budRefresh">Refresh</button></div></div>
+    <div class="hint" id="budAsOf" style="margin-top:8px">Waiting for private Mission Control sync…</div>
+    <div class="bud-summary" id="budSummary"></div>
+  </div>
+  <div class="two-col" style="margin-top:12px">
+    <div class="panel"><h3>Weekly cash plan</h3><div class="hint">Pull the same amount every Friday and let unused cash roll forward.</div><div class="bud-cash" id="budCash"></div></div>
+    <div class="panel"><h3>Budget pace</h3><div id="budPace" style="margin-top:9px"></div></div>
+  </div>
+  <div class="section-title"><h3>Category spending vs plan</h3><div class="hint">Spent this month / full-month plan</div></div>
+  <div class="bud-grid" id="budGrid"></div>
+  <div class="panel" id="budOutsidePanel" style="margin-top:12px"><h3>Outside the balanced plan</h3><div class="hint">Spending that posted this month but does not have a planned bucket in the balanced budget.</div><div class="bud-outside" id="budOutside"></div></div>
+  <div class="panel" style="margin-top:12px"><div class="bud-privacy" id="budPrivacy"></div></div>
+</section>`;
+function snapshot(){try{return w().__mcFinanceSnapshot?w().__mcFinanceSnapshot():null}catch(e){return null}}
+function install(){const doc=d();if(!doc||!doc.querySelector('.nav')||!doc.getElementById('page-finances'))return false;
+  if(!doc.getElementById('budgetInjectedStyle')){const st=doc.createElement('style');st.id='budgetInjectedStyle';st.textContent=CSS;doc.head.appendChild(st)}
+  const pressure=doc.getElementById('finPressure');if(pressure&&pressure.closest('.panel'))pressure.closest('.panel').style.display='none';
+  if(!doc.getElementById('page-budget')){const dataPage=doc.getElementById('page-data');dataPage.insertAdjacentHTML('beforebegin',HTML)}
+  if(!doc.querySelector('.nav [data-page="budget"]')){const b=doc.createElement('button');b.dataset.page='budget';b.textContent='Budget';const dataBtn=doc.querySelector('.nav [data-page="data"]');dataBtn.parentNode.insertBefore(b,dataBtn);b.onclick=()=>{w().switchPage('budget');render()}}
+  const refresh=doc.getElementById('budRefresh');if(refresh&&!refresh.dataset.bound){refresh.dataset.bound='1';refresh.onclick=async()=>{refresh.textContent='Refreshing…';if(w().__mcFinancePull)await w().__mcFinancePull();setTimeout(()=>{if(typeof window.renderFinance==='function')window.renderFinance();render(true);refresh.textContent='Refresh'},350)}}
+  return true
+}
+function status(spent,planned,pace){if(planned<=0)return spent>0?{label:'Unplanned',cls:'bad',card:'over'}:{label:'Inactive',cls:'muted',card:'inactive'};const ratio=spent/planned;if(ratio>1)return{label:`${Math.round(ratio*100)}% used`,cls:'bad',card:'over'};if(ratio>Math.min(1,pace+.12))return{label:`${Math.round(ratio*100)}% used`,cls:'warn',card:'watch'};return{label:`${Math.round(ratio*100)}% used`,cls:'good',card:''}}
+function render(showToast=false){if(!install())return;const doc=d(),snap=snapshot(),b=snap&&snap.budget;if(!snap||!b){doc.getElementById('budAsOf').textContent='Private budget data has not reached this device yet. Use Data & Sync to confirm the device is connected, then press Refresh.';doc.getElementById('budSummary').innerHTML='<div class="fin-lock">Budget details stay behind your private Mission Control sync. Nothing personal is embedded in the public site code.</div>';doc.getElementById('budGrid').innerHTML='';return}
+  const planned=Number(b.plannedTotal||0),spent=Number((snap.currentMonth||{}).spending||0),remaining=planned-spent;
+  const asOf=snap.asOf?new Date(snap.asOf+'T12:00:00'):new Date(),daysInMonth=new Date(asOf.getFullYear(),asOf.getMonth()+1,0).getDate(),elapsed=Math.min(daysInMonth,asOf.getDate()),pace=elapsed/daysInMonth,used=planned>0?spent/planned:0;
+  doc.getElementById('budAsOf').textContent=`${(snap.currentMonth||{}).label||'Current month'} • Private budget snapshot through ${dateLabel(snap.asOf)}`;
+  const paceDiff=used-pace,overall=remaining<0?'bad':paceDiff>.12?'warn':'good';
+  doc.getElementById('budSummary').innerHTML=`<div class="bud-stat"><div class="n">${money(planned)}</div><div class="l">Planned budget</div><div class="d">Balanced to conservative monthly income</div></div><div class="bud-stat"><div class="n">${money(spent)}</div><div class="l">Spent this month</div><div class="d">${Math.round(used*100)}% of the monthly plan used</div></div><div class="bud-stat ${remaining<0?'bad':'good'}"><div class="n">${money(remaining)}</div><div class="l">Remaining</div><div class="d">Still available in the plan</div></div><div class="bud-stat ${overall}"><div class="n">${Math.round(used*100)}% / ${Math.round(pace*100)}%</div><div class="l">Budget use / month elapsed</div><div class="d">${paceDiff<=0?'Spending is behind the calendar pace':paceDiff<=.12?'Close to calendar pace':'Spending is running ahead of calendar pace'}</div></div>`;
+  const cash=b.weeklyCashPlan||{};doc.getElementById('budCash').innerHTML=`<div class="bud-cash-card"><b>${money(cash.total)}</b><span>Total cash every ${esc(cash.cadence||'Friday')}</span></div><div class="bud-cash-card"><b>${money(cash.flexibleHousehold)}</b><span>Flexible household spending</span></div><div class="bud-cash-card"><b>${money(cash.girlsAllowance)}</b><span>Girls' allowance total</span></div>`;
+  const paceStatus=paceDiff<=0?['On track','var(--good)']:paceDiff<=.12?['Watch','var(--warn)']:['Running high','var(--bad)'];doc.getElementById('budPace').innerHTML=`<div class="item"><b style="color:${paceStatus[1]}">${paceStatus[0]}</b><span>${Math.round(used*100)}% of the budget has been used while ${Math.round(pace*100)}% of the month has elapsed.</span></div><div class="progress" style="margin-top:10px"><div style="width:${Math.min(100,used*100)}%;background:${paceStatus[1]}"></div></div>`;
+  doc.getElementById('budGrid').innerHTML=(b.categories||[]).map(c=>{const p=Number(c.planned||0),s=Number(c.spent||0),rem=p-s,st=status(s,p,pace),width=p>0?Math.min(100,s/p*100):0;return `<div class="bud-cat ${st.card}"><div class="bud-cat-top"><div><h4>${esc(c.name)}</h4><div class="bud-amt">${money(s)} spent of ${money(p)}</div></div><div class="bud-rem">${p>0?(rem>=0?money(rem)+' left':money(Math.abs(rem))+' over'):'No planned amount'}<div class="bud-status ${st.cls}">${st.label}</div></div></div><div class="bud-track"><div class="bud-fill" style="width:${width}%"></div></div></div>`}).join('');
+  const outside=b.outsidePlan||[],panel=doc.getElementById('budOutsidePanel');panel.style.display=outside.length?'block':'none';doc.getElementById('budOutside').innerHTML=outside.map(x=>`<div class="bud-outside-row"><b>${esc(x.name)} • ${money(x.spent)}</b><span>${esc(x.note||'Not assigned to a planned category.')}</span></div>`).join('');
+  doc.getElementById('budPrivacy').innerHTML='<b>Privacy:</b> This tab reads the private finance snapshot carried through Mission Control sync. Household budget amounts and category spending are not stored in the public GitHub Pages code.';
+  if(showToast&&w().toast)w().toast('Budget refreshed')
+}
+function hook(){if(!install())return false;render();return true}
+frame.addEventListener('load',()=>{let n=0;const t=setInterval(()=>{n++;if(hook()){clearInterval(t);setTimeout(render,1500);setTimeout(render,4000);setInterval(()=>{const doc=d();if(doc&&doc.getElementById('page-budget')&&doc.getElementById('page-budget').classList.contains('active'))render()},5000)}else if(n>60)clearInterval(t)},150)});
+if(frame.contentDocument&&frame.contentDocument.readyState==='complete')setTimeout(hook,350);
+})();
