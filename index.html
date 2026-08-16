@@ -86,5 +86,6 @@ function renderFinance(showToast=false){
 
 frame.addEventListener('load',()=>{let tries=0;const ready=setInterval(()=>{tries++;if(installBridge()){clearInterval(ready);renderFinance();setTimeout(renderFinance,1500);setTimeout(renderFinance,4000);setInterval(()=>{const s=win().__mcFinanceSnapshot?win().__mcFinanceSnapshot():null;if(s&&s.asOf!==lastFinanceStamp)renderFinance()},5000)}else if(tries>40)clearInterval(ready)},100)});
 </script>
+<script src="./finance-review.js"></script>
 </body>
 </html>
