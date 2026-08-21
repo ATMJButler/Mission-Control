@@ -17,6 +17,33 @@ const frame=document.getElementById('core');
 const BUDGET_URL='https://docs.google.com/spreadsheets/d/1i35k09HfZ3CEkj9PVoMh8pF7xPI2g2hX2FBsMsbo3Q4/edit';
 const REVIEW_URL='https://docs.google.com/spreadsheets/d/1i35k09HfZ3CEkj9PVoMh8pF7xPI2g2hX2FBsMsbo3Q4/edit?gid=151895354#gid=151895354';
 let lastFinanceStamp='';
+let lastAgendaStamp='';
+
+const AGENDA_CSS=`
+.agenda-hero{background:linear-gradient(180deg,rgba(29,47,76,.98),rgba(10,25,43,.98));border-color:#40638c}
+.agenda-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.agenda-actions{display:flex;gap:8px;flex-wrap:wrap}
+.agenda-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(300px,.65fr);gap:12px;margin-top:12px}.agenda-list{display:flex;flex-direction:column;gap:8px}.agenda-row{display:grid;grid-template-columns:92px 18px minmax(0,1fr);gap:10px;align-items:stretch}.agenda-time{font-size:12px;font-weight:850;color:#c8d8e8;padding-top:11px;text-align:right}.agenda-rail{position:relative}.agenda-rail:before{content:"";position:absolute;left:8px;top:0;bottom:-8px;width:2px;background:#26405f}.agenda-dot{position:absolute;left:3px;top:14px;width:12px;height:12px;border-radius:999px;background:var(--accent);box-shadow:0 0 0 3px #0d1a2c}.agenda-row.fixed .agenda-dot{background:var(--sw)}.agenda-row.focus .agenda-dot{background:var(--good)}.agenda-row.buffer .agenda-dot{background:var(--warn)}.agenda-row.personal .agenda-dot{background:var(--home)}
+.agenda-card{background:#0d1a2c;border:1px solid var(--line);border-radius:14px;padding:11px 12px}.agenda-card h4{margin:0 0 4px;font-size:14px}.agenda-card p{margin:0;font-size:11px;color:var(--muted);line-height:1.45}.agenda-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}.agenda-badge{font-size:9px;text-transform:uppercase;letter-spacing:.06em;border:1px solid #34506f;border-radius:999px;padding:3px 6px;color:#cbd9e8}.agenda-now .agenda-card{border-color:#6fb5e9;box-shadow:0 0 0 1px rgba(127,200,255,.18)}
+.agenda-side{display:flex;flex-direction:column;gap:10px}.agenda-summary{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}.agenda-stat{background:#091525;border:1px solid #29425f;border-radius:12px;padding:10px}.agenda-stat b{display:block;font-size:22px}.agenda-stat span{font-size:10px;color:var(--muted)}.agenda-empty{background:#211b10;border:1px solid #69562b;border-radius:12px;padding:13px;color:#f7dca0}.agenda-note{font-size:11px;line-height:1.55;color:#c8d5e2}
+@media(max-width:980px){.agenda-grid{grid-template-columns:1fr}.agenda-time{text-align:left}.agenda-row{grid-template-columns:78px 18px minmax(0,1fr)}}
+@media(max-width:620px){.agenda-head{flex-direction:column}.agenda-row{grid-template-columns:68px 14px minmax(0,1fr);gap:7px}.agenda-time{font-size:11px}.agenda-dot{left:1px}.agenda-rail:before{left:6px}.agenda-summary{grid-template-columns:1fr 1fr}}
+`;
+
+const AGENDA_HTML=`
+<section class="page" id="page-agenda">
+  <div class="hero agenda-hero">
+    <div class="agenda-head"><div><h2 id="agendaTitle">Today's Agenda</h2><div class="hero-sub" id="agendaSub">Your fixed commitments and optimized work plan for today.</div></div><div class="agenda-actions"><button class="btn" id="agendaRefresh">Refresh</button><button class="btn" id="agendaTodayBtn">Today Focus</button></div></div>
+    <div class="hint" id="agendaAsOf" style="margin-top:8px">Waiting for today's operating plan…</div>
+  </div>
+  <div class="agenda-grid">
+    <div class="panel"><h3>Schedule</h3><div class="agenda-list" id="agendaList" style="margin-top:10px"></div></div>
+    <div class="agenda-side">
+      <div class="panel"><h3>Day at a glance</h3><div class="agenda-summary" id="agendaSummary"></div></div>
+      <div class="panel"><h3>Top outcomes</h3><div class="list" id="agendaOutcomes"></div></div>
+      <div class="panel"><h3>Planning note</h3><div class="agenda-note" id="agendaNote">Mission Control protects fixed commitments first, then places the highest-value work into the remaining space.</div></div>
+    </div>
+  </div>
+</section>`;
 
 const FIN_CSS=`
 .fin-hero{background:linear-gradient(180deg,rgba(18,43,57,.98),rgba(10,26,38,.98));border-color:#315c6d}
@@ -53,16 +80,37 @@ function money(v){if(v===null||v===undefined||Number.isNaN(Number(v)))return 'Un
 function signed(v){const n=Number(v||0);return (n>0?'+':'')+money(n)}
 function dateLabel(v){if(!v)return 'Unknown';return new Date(v+'T12:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}
 function monthLabel(v){const p=String(v).split('-');return new Date(Number(p[0]),Number(p[1])-1,2).toLocaleDateString(undefined,{month:'short'})}
+function timeLabel(v){if(!v)return '';const d=new Date(v);return Number.isNaN(d.getTime())?String(v):d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})}
 function doc(){return frame.contentDocument}function win(){return frame.contentWindow}
 
 function installBridge(){
   const d=doc();if(!d||!d.querySelector('.nav'))return false;
-  if(!d.getElementById('finInjectedStyle')){const st=d.createElement('style');st.id='finInjectedStyle';st.textContent=FIN_CSS;d.head.appendChild(st)}
+  if(!d.getElementById('finInjectedStyle')){const st=d.createElement('style');st.id='finInjectedStyle';st.textContent=FIN_CSS+'\n'+AGENDA_CSS;d.head.appendChild(st)}
+  if(!d.getElementById('page-agenda')){const home=d.getElementById('page-home');home.insertAdjacentHTML('beforebegin',AGENDA_HTML)}
   if(!d.getElementById('page-finances')){const dataPage=d.getElementById('page-data');dataPage.insertAdjacentHTML('beforebegin',FIN_HTML)}
+  if(!d.querySelector('.nav [data-page="agenda"]')){const b=d.createElement('button');b.dataset.page='agenda';b.textContent='Agenda';const homeBtn=d.querySelector('.nav [data-page="home"]');homeBtn.parentNode.insertBefore(b,homeBtn);b.onclick=()=>{win().switchPage('agenda');renderAgenda();}}
   if(!d.querySelector('.nav [data-page="finances"]')){const b=d.createElement('button');b.dataset.page='finances';b.textContent='Finances';const dataBtn=d.querySelector('.nav [data-page="data"]');dataBtn.parentNode.insertBefore(b,dataBtn);b.onclick=()=>{win().switchPage('finances');renderFinance();}}
-  if(!win().__mcFinanceSnapshot){const sc=d.createElement('script');sc.textContent=`window.__mcFinanceSnapshot=function(){try{const p=state.projects.find(x=>x&&x.financeData);return p&&p.financeData?JSON.parse(p.financeData):null}catch(e){return null}};window.__mcFinancePull=async function(){try{await pullProjects(false);return true}catch(e){return false}};`;d.body.appendChild(sc)}
-  const refresh=d.getElementById('finRefresh');if(refresh&&!refresh.dataset.bound){refresh.dataset.bound='1';refresh.onclick=async()=>{refresh.textContent='Refreshing…';if(win().__mcFinancePull)await win().__mcFinancePull();setTimeout(()=>{renderFinance(true);refresh.textContent='Refresh'},350)}}
+  if(!win().__mcPrivateSnapshotBridge){const sc=d.createElement('script');sc.textContent=`window.__mcFinanceSnapshot=function(){try{const p=state.projects.find(x=>x&&x.financeData);return p&&p.financeData?JSON.parse(p.financeData):null}catch(e){return null}};window.__mcAgendaSnapshot=function(){try{const p=state.projects.find(x=>x&&x.agendaData);return p&&p.agendaData?JSON.parse(p.agendaData):null}catch(e){return null}};window.__mcPrivatePull=async function(){try{await pullProjects(false);return true}catch(e){return false}};window.__mcPrivateSnapshotBridge=true;`;d.body.appendChild(sc)}
+  const f=d.getElementById('finRefresh');if(f&&!f.dataset.bound){f.dataset.bound='1';f.onclick=async()=>{f.textContent='Refreshing…';if(win().__mcPrivatePull)await win().__mcPrivatePull();setTimeout(()=>{renderFinance(true);f.textContent='Refresh'},350)}}
+  const a=d.getElementById('agendaRefresh');if(a&&!a.dataset.bound){a.dataset.bound='1';a.onclick=async()=>{a.textContent='Refreshing…';if(win().__mcPrivatePull)await win().__mcPrivatePull();setTimeout(()=>{renderAgenda(true);a.textContent='Refresh'},350)}}
+  const t=d.getElementById('agendaTodayBtn');if(t&&!t.dataset.bound){t.dataset.bound='1';t.onclick=()=>win().switchPage('today')}
   return true
+}
+
+function renderAgenda(showToast=false){
+  if(!installBridge())return;
+  const d=doc(),snap=win().__mcAgendaSnapshot?win().__mcAgendaSnapshot():null;
+  const list=d.getElementById('agendaList'),summary=d.getElementById('agendaSummary'),outcomes=d.getElementById('agendaOutcomes');
+  if(!snap){d.getElementById('agendaAsOf').textContent='Today’s agenda has not reached this device yet. The Daily Operations Reconciler will publish the optimized plan here.';list.innerHTML='<div class="agenda-empty">No agenda snapshot is available yet. Refresh after the next Mission Control sync.</div>';summary.innerHTML='';outcomes.innerHTML='';return}
+  lastAgendaStamp=snap.updatedAt||snap.asOf||snap.date||'';
+  const day=snap.date||new Date().toISOString().slice(0,10),items=Array.isArray(snap.items)?snap.items:[],tops=Array.isArray(snap.outcomes)?snap.outcomes:[];
+  d.getElementById('agendaTitle').textContent=snap.title||'Today’s Agenda';d.getElementById('agendaSub').textContent=snap.subtitle||'Your fixed commitments and optimized work plan for today.';d.getElementById('agendaAsOf').textContent=`${dateLabel(day)} • plan updated ${snap.updatedAt?new Date(snap.updatedAt).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}):'this morning'}`;
+  const now=Date.now();
+  list.innerHTML=items.map(x=>{const s=x.start?new Date(x.start).getTime():0,e=x.end?new Date(x.end).getTime():0,live=s&&e&&now>=s&&now<e;const kind=x.kind||'focus';return `<div class="agenda-row ${esc(kind)} ${live?'agenda-now':''}"><div class="agenda-time">${x.allDay?'All day':`${timeLabel(x.start)}${x.end?' – '+timeLabel(x.end):''}`}</div><div class="agenda-rail"><span class="agenda-dot"></span></div><div class="agenda-card"><h4>${esc(x.title||'Scheduled block')}</h4>${x.detail?`<p>${esc(x.detail)}</p>`:''}<div class="agenda-meta"><span class="agenda-badge">${esc(x.label||kind)}</span>${x.source?`<span class="agenda-badge">${esc(x.source)}</span>`:''}${live?'<span class="agenda-badge">Now</span>':''}</div></div></div>`}).join('')||'<div class="agenda-empty">No scheduled items were published for today.</div>';
+  const fixed=items.filter(x=>x.kind==='fixed').length,focus=items.filter(x=>x.kind==='focus').length,mins=items.reduce((n,x)=>{if(!x.start||!x.end)return n;const a=new Date(x.start),b=new Date(x.end);return n+Math.max(0,(b-a)/60000)},0);summary.innerHTML=`<div class="agenda-stat"><b>${items.length}</b><span>Schedule blocks</span></div><div class="agenda-stat"><b>${fixed}</b><span>Fixed commitments</span></div><div class="agenda-stat"><b>${focus}</b><span>Focus blocks</span></div><div class="agenda-stat"><b>${Math.round(mins/60*10)/10}h</b><span>Planned time</span></div>`;
+  outcomes.innerHTML=tops.map((x,i)=>`<div class="item"><b>${i+1}. ${esc(typeof x==='string'?x:(x.title||''))}</b>${typeof x==='object'&&x.detail?`<span>${esc(x.detail)}</span>`:''}</div>`).join('')||'<div class="item"><b>No top outcomes published.</b></div>';
+  d.getElementById('agendaNote').textContent=snap.note||'Mission Control protects fixed commitments first, then places the highest-value work into the remaining space.';
+  if(showToast&&win().toast)win().toast('Agenda refreshed');
 }
 
 function renderBars(el,rows,a,b){const max=Math.max(1,...rows.flatMap(r=>[Number(r[a])||0,Number(r[b])||0]));el.innerHTML=rows.map(r=>`<div class="fin-row"><div class="fin-month">${monthLabel(r.month)}</div><div class="fin-bars"><div class="fin-bar ${a==='confirmedIncome'?'income':'spend'}" style="width:${Math.max(1,(Number(r[a])||0)/max*100)}%"></div><div class="fin-bar ${b==='budget'?'budget':'spend'}" style="width:${Math.max(1,(Number(r[b])||0)/max*100)}%"></div></div><div class="fin-val">${money(r[a])}</div></div>`).join('')}
@@ -84,7 +132,7 @@ function renderFinance(showToast=false){
   if(showToast&&win().toast)win().toast('Finances refreshed');
 }
 
-frame.addEventListener('load',()=>{let tries=0;const ready=setInterval(()=>{tries++;if(installBridge()){clearInterval(ready);renderFinance();setTimeout(renderFinance,1500);setTimeout(renderFinance,4000);setInterval(()=>{const s=win().__mcFinanceSnapshot?win().__mcFinanceSnapshot():null;if(s&&s.asOf!==lastFinanceStamp)renderFinance()},5000)}else if(tries>40)clearInterval(ready)},100)});
+frame.addEventListener('load',()=>{let tries=0;const ready=setInterval(()=>{tries++;if(installBridge()){clearInterval(ready);win().switchPage('agenda');renderAgenda();renderFinance();setTimeout(()=>{renderAgenda();renderFinance()},1500);setTimeout(()=>{renderAgenda();renderFinance()},4000);setInterval(()=>{const f=win().__mcFinanceSnapshot?win().__mcFinanceSnapshot():null;if(f&&f.asOf!==lastFinanceStamp)renderFinance();const a=win().__mcAgendaSnapshot?win().__mcAgendaSnapshot():null;const stamp=a&&(a.updatedAt||a.asOf||a.date);if(stamp&&stamp!==lastAgendaStamp)renderAgenda()},5000)}else if(tries>40)clearInterval(ready)},100)});
 </script>
 <script src="./finance-review.js"></script>
 </body>
