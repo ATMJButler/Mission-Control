@@ -135,5 +135,6 @@ function renderFinance(showToast=false){
 frame.addEventListener('load',()=>{let tries=0;const ready=setInterval(()=>{tries++;if(installBridge()){clearInterval(ready);win().switchPage('agenda');renderAgenda();renderFinance();setTimeout(()=>{renderAgenda();renderFinance()},1500);setTimeout(()=>{renderAgenda();renderFinance()},4000);setInterval(()=>{const f=win().__mcFinanceSnapshot?win().__mcFinanceSnapshot():null;if(f&&f.asOf!==lastFinanceStamp)renderFinance();const a=win().__mcAgendaSnapshot?win().__mcAgendaSnapshot():null;const stamp=a&&(a.updatedAt||a.asOf||a.date);if(stamp&&stamp!==lastAgendaStamp)renderAgenda()},5000)}else if(tries>40)clearInterval(ready)},100)});
 </script>
 <script src="./finance-review.js"></script>
+<script src="./budget-drilldown.js"></script>
 </body>
 </html>
