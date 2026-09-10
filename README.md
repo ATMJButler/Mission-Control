@@ -58,3 +58,10 @@ The `Projects` tab is a regular table on purpose, so Mission Control, manual Goo
 
 ### V5 Apps Script upgrade
 Replace the Apps Script code with `google_apps_script_Code.gs`, but **keep your existing private SYNC_TOKEN value**. Save it, then update the existing Web App deployment to a new version. Do not run `setupSheet()` unless you intentionally need to repair headers.
+
+
+## Agenda execution status
+- Agenda cards are clickable and support **Not started**, **In progress**, **Done**, and **Skipped**.
+- Status is saved into the private `agendaData` snapshot and synced through the existing Mission Control Google Sheet connection.
+- Same-day agenda refreshes should preserve user-authored status using a stable item ID, or start time plus title when no source ID exists.
+- Agenda status is execution evidence inside Mission Control. It does not directly modify Google Calendar or Todoist unless a verified source ID and write-back integration are present.
