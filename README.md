@@ -65,3 +65,4 @@ Replace the Apps Script code with `google_apps_script_Code.gs`, but **keep your 
 - Status is saved into the private `agendaData` snapshot and synced through the existing Mission Control Google Sheet connection.
 - Same-day agenda refreshes should preserve user-authored status using a stable item ID, or start time plus title when no source ID exists.
 - Agenda status is execution evidence inside Mission Control. It does not directly modify Google Calendar or Todoist unless a verified source ID and write-back integration are present.
+- **Deployment note:** update the bound Google Apps Script from `google_apps_script_Code.gs` and publish a new version so `financeData` and `agendaData` are included in the write path. Keep the existing private `SYNC_TOKEN`; do not run `setupSheet()`.
