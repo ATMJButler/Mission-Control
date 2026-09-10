@@ -8,7 +8,7 @@ const HEADERS = [
 'id','name','area','status','priority','attention','owner','description','outcome',
 'doneDefinition','currentState','nextAction','waitingOn','waitingSince','followupDate',
 'deadline','milestone','milestoneDate','progress','tags','notes','dependencyId','lastUpdate',
-'lastUpdatedAt','lastUpdatedBy'
+'lastUpdatedAt','lastUpdatedBy','financeData','agendaData'
 ];
 
 function setupSheet(){const ss=SpreadsheetApp.getActive();let sh=ss.getSheetByName(SHEET_NAME);if(!sh)sh=ss.insertSheet(SHEET_NAME);ensureHeaders_(sh);sh.setFrozenRows(1);sh.autoResizeColumns(1,HEADERS.length)}
