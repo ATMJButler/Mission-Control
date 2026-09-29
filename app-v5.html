@@ -265,7 +265,16 @@ const storage={
 };
 let syncTimer=null,syncBusy=false;
 function defaultDeviceLabel(){return /iPhone|Android|Mobile/i.test(navigator.userAgent)?"Mission Control — Mobile":"Mission Control — Desktop"}
-function syncConfig(){try{return JSON.parse(localStorage.getItem(SYNC_KEY))||{}}catch(e){return {}}}
+function syncConfig(){
+  try{
+    const saved=JSON.parse(localStorage.getItem(SYNC_KEY))||{};
+    if(location.hostname.endsWith(".vercel.app"))return {url:"/api/sync",token:"server-managed",deviceLabel:saved.deviceLabel||defaultDeviceLabel(),serverManaged:true};
+    return saved
+  }catch(e){
+    if(location.hostname.endsWith(".vercel.app"))return {url:"/api/sync",token:"server-managed",deviceLabel:defaultDeviceLabel(),serverManaged:true};
+    return {}
+  }
+}
 function sourceLabel(){return syncConfig().deviceLabel||defaultDeviceLabel()}
 function stampProject(p,source=sourceLabel()){p.lastUpdate=today();p.lastUpdatedAt=new Date().toISOString();p.lastUpdatedBy=source}
 function setSyncStatus(title,detail){const a=document.getElementById("syncStatus"),b=document.getElementById("syncDetail");if(a)a.textContent=title;if(b)b.textContent=detail}
@@ -296,7 +305,7 @@ async function pushProjects(showToast=true){
   syncBusy=true;
   setSyncStatus("Syncing…","Merging project updates with the shared Google Sheet.");
   try{
-    const r=await fetch(c.url,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({token:c.token,projects:state.projects,source:sourceLabel()})});
+    const r=await fetch(c.url,{method:"POST",headers:{"Content-Type":"application/json;charset=utf-8"},body:JSON.stringify({...(c.serverManaged?{}:{token:c.token}),projects:state.projects,source:sourceLabel()})});
     const x=await r.json();
     if(!x.ok)throw new Error(x.error||"Sync failed");
     if(Array.isArray(x.projects)){
@@ -320,7 +329,7 @@ async function pullProjects(showToast=true){
   const c=syncConfig();if(!c.url||!c.token)return;
   syncBusy=true;setSyncStatus("Syncing…","Checking the shared Google Sheet for newer project updates.");
   try{
-    const sep=c.url.includes("?")?"&":"?";const r=await fetch(c.url+sep+"token="+encodeURIComponent(c.token));
+    const sep=c.url.includes("?")?"&":"?";const r=await fetch(c.serverManaged?c.url:(c.url+sep+"token="+encodeURIComponent(c.token)));
     const x=await r.json();if(!x.ok||!Array.isArray(x.projects))throw new Error(x.error||"Sync failed");
     state.projects=x.projects.map(p=>migrate({projects:[p]}).projects[0]);
     localStorage.setItem(KEY,JSON.stringify(state));renderAll();
@@ -333,7 +342,7 @@ async function syncNow(){await pullProjects(false);await pushProjects(false);toa
 function initSyncUI(){
   const c=syncConfig(),u=document.getElementById("syncUrl"),t=document.getElementById("syncToken"),d=document.getElementById("deviceLabel");
   if(u)u.value=c.url||"";if(t)t.value=c.token||"";if(d)d.value=c.deviceLabel||defaultDeviceLabel();
-  if(c.url&&c.token){setSyncStatus("Connected","Shared project source configured. Refreshing…");pullProjects(false)}
+  if(c.url&&c.token){setSyncStatus("Connected",c.serverManaged?"Protected Mission Control sync configured. Refreshing…":"Shared project source configured. Refreshing…");pullProjects(false)}
   else setSyncStatus("Local mode","Add the Apps Script URL and token to share projects across devices.");
 }
 function saveSyncConfig(){
