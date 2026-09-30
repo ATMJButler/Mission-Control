@@ -1,4 +1,8 @@
 export default async function handler(req,res){
+  res.setHeader("Cache-Control","no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+  res.setHeader("Pragma","no-cache");
+  res.setHeader("Expires","0");
+  res.setHeader("Surrogate-Control","no-store");
   const upstream=process.env.MC_SYNC_URL;
   const token=process.env.MC_SYNC_TOKEN;
   if(!upstream||!token)return res.status(503).json({ok:false,error:"Mission Control private sync is not configured."});
