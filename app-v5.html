@@ -260,7 +260,7 @@ const seed=[
 const SYNC_KEY="missionControlV3Sync";
 const storage={
   load(){try{const x=JSON.parse(localStorage.getItem(KEY));if(x&&Array.isArray(x.projects))return migrate(x)}catch(e){}
-    return {projects:seed,actions:[],inbox:[],activity:[{ts:"2026-08-14T19:30:00",type:"update",projectId:"assets",text:"Asset library surfaced as a current ATM OS constraint."},{ts:"2026-08-14T19:25:00",type:"update",projectId:"siro",text:"Siro remains a highest-leverage Supportworks project."}],completedActions:[]}},
+    return migrate({projects:seed,actions:[],inbox:[],activity:[{ts:"2026-08-14T19:30:00",type:"update",projectId:"assets",text:"Asset library surfaced as a current ATM OS constraint."},{ts:"2026-08-14T19:25:00",type:"update",projectId:"siro",text:"Siro remains a highest-leverage Supportworks project."}],completedActions:[]})},
   save(s){localStorage.setItem(KEY,JSON.stringify(s));queueProjectPush()}
 };
 let syncTimer=null,syncBusy=false;
@@ -354,7 +354,24 @@ function saveSyncConfig(){
 }
 function migrate(x){
   x.actions=x.actions||[];x.inbox=x.inbox||[];x.activity=x.activity||[];x.completedActions=x.completedActions||[];
-  x.projects=x.projects.map(p=>({...p,attention:p.attention||(p.status==="Completed"?"Complete":p.waitingOn?"Waiting":p.status==="Incubator / Someday"?"Parked":"Needs John"),outcome:p.outcome||p.description||"",doneDefinition:p.doneDefinition||"",dependencyId:p.dependencyId||"",tags:p.tags||[]}));
+  x.household=x.household||{id:"butler-household",name:"Butler Household",version:1};
+  x.users=x.users||[
+    {id:"john",name:"John",role:"principal",status:"active",modules:["agenda","today","projects","inbox","weekly","money","budget","settings"],scopes:["private:john","household:shared"],onboarding:"complete"},
+    {id:"julie",name:"Julie",role:"secondary",status:"invited",modules:["agenda","today","budget","family"],scopes:["private:julie","household:shared"],onboarding:"not_started"}
+  ];
+  x.modulePolicy=x.modulePolicy||{
+    principal:["agenda","today","projects","inbox","weekly","money","budget","settings"],
+    secondary:["agenda","today","budget","family"],
+    extended:["agenda","today","family"],
+    readonly:["family"]
+  };
+  x.sharingPolicy=x.sharingPolicy||{
+    shared:["budget","family_calendar","household_commitments"],
+    privateByDefault:["projects","inbox","work_calendar","personal_tasks","connections"],
+    householdFinanceConnectionOwner:"household",
+    secondaryFinancialModules:["budget"]
+  };
+  x.projects=x.projects.map(p=>({...p,scope:p.scope||((p.area==="Personal / Home")?"private:john":"private:john"),attention:p.attention||(p.status==="Completed"?"Complete":p.waitingOn?"Waiting":p.status==="Incubator / Someday"?"Parked":"Needs John"),outcome:p.outcome||p.description||"",doneDefinition:p.doneDefinition||"",dependencyId:p.dependencyId||"",tags:p.tags||[]}));
   return x
 }
 let state=storage.load(),quickFilter="All",selectedProject=null;
