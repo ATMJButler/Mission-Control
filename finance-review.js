@@ -100,7 +100,9 @@ function render(showToast=false){if(!install())return;const doc=d(),snap=snapsho
   doc.getElementById('budPrivacy').innerHTML='<b>Privacy:</b> This tab reads the private finance snapshot carried through Mission Control sync. Household budget amounts and category spending are not stored in the public GitHub Pages code.';
   if(showToast&&w().toast)w().toast('Budget refreshed')
 }
-function hook(){if(!install())return false;render();return true}
-frame.addEventListener('load',()=>{let n=0;const t=setInterval(()=>{n++;if(hook()){clearInterval(t);setTimeout(render,1500);setTimeout(render,4000);setInterval(()=>{const doc=d();if(doc&&doc.getElementById('page-budget')&&doc.getElementById('page-budget').classList.contains('active'))render()},5000)}else if(n>60)clearInterval(t)},150)});
+function hook(){if(!install())return false;render();window.dispatchEvent(new CustomEvent('mc-budget-rendered'));return true}
+frame.addEventListener('load',()=>{let n=0;const t=setInterval(()=>{n++;if(hook()){clearInterval(t)}else if(n>60)clearInterval(t)},150)});
+window.addEventListener('mc-private-sync-ready',()=>{hook()});
+window.addEventListener('mc-finance-updated',()=>{hook()});
 if(frame.contentDocument&&frame.contentDocument.readyState==='complete')setTimeout(hook,350);
 })();
