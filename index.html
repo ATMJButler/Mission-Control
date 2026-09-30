@@ -156,9 +156,28 @@ async function saveAgendaStatus(status){const d=doc(),modal=d.getElementById('ag
 function renderBars(el,rows,a,b){const max=Math.max(1,...rows.flatMap(r=>[Number(r[a])||0,Number(r[b])||0]));el.innerHTML=rows.map(r=>`<div class="fin-row"><div class="fin-month">${monthLabel(r.month)}</div><div class="fin-bars"><div class="fin-bar ${a==='confirmedIncome'?'income':'spend'}" style="width:${Math.max(1,(Number(r[a])||0)/max*100)}%"></div><div class="fin-bar ${b==='budget'?'budget':'spend'}" style="width:${Math.max(1,(Number(r[b])||0)/max*100)}%"></div></div><div class="fin-val">${money(r[a])}</div></div>`).join('')}
 function renderMargins(el,rows){const max=Math.max(1,...rows.map(r=>Math.abs(Number(r.margin)||0)));el.innerHTML=rows.map(r=>{const n=Number(r.margin)||0,w=Math.min(50,Math.abs(n)/max*50);return `<div class="fin-row"><div class="fin-month">${monthLabel(r.month)}</div><div class="fin-margin-track"><span class="fin-margin ${n>=0?'pos':'neg'}" style="width:${w}%"></span></div><div class="fin-val" style="color:${n>=0?'var(--good)':'var(--bad)'}">${signed(n)}</div></div>`}).join('')}
 
+
+function normalizeFinance(raw){
+  if(!raw)return null;
+  if(raw.yearToDate&&Array.isArray(raw.categories)&&raw.debt&&!Array.isArray(raw.debt))return raw;
+  const cm=raw.currentMonth||{},budget=raw.budget||{},y=raw.ytd||{},debts=Array.isArray(raw.debt)?raw.debt:[],pressure=raw.categoryPressure||[];
+  const monthly=(raw.monthly||[]).map(x=>({month:x.month||x.m,spending:x.spending??x.s??0,confirmedIncome:x.confirmedIncome??x.i??0,budget:x.budget??budget.workingBudget??0,margin:x.margin??0}));
+  const cats=pressure.map(x=>({name:x.name||x.b,planned:x.planned??x.t??0,ytdActual:x.ytdActual??x.a??0,variance:x.variance??-(x.d??0)}));
+  const debtAccounts=debts.filter(x=>x&&x.status!=='paid_off').map(x=>({name:x.name||'Debt',type:x.sourceStatus||x.status||'',balance:x.balance??null,payment:x.minimum??x.lastPayment??0,paymentLabel:x.minimum!=null?'Minimum':'Last payment',due:x.due||x.nextPredictedDate||null,apr:x.apr??null,status:x.status||x.action||''}));
+  const connectedBalanceTotal=debtAccounts.reduce((s,x)=>s+(Number(x.balance)||0),0);
+  const knownMonthlyCommitments=debtAccounts.reduce((s,x)=>s+(Number(x.payment)||0),0);
+  return {...raw,
+    currentMonth:{...cm,label:cm.label||'Current month',workingBudget:cm.workingBudget??budget.workingBudget??0,glp1Earmark:cm.glp1Earmark??cm.earmarks?.julieGlp1??budget.earmarks?.julieGlp1??0,householdMargin:cm.householdMargin??0},
+    yearToDate:{spending:y.spending??0,confirmedIncome:y.income??0,householdMargin:y.margin??0},
+    monthly,
+    categories:cats,
+    reviewItems:(raw.recentReview||[]).map(x=>({date:x.date||x.d,description:x.description||x.desc,amount:x.amount??x.a,category:x.category||x.cat||'',reason:x.reason||''})),
+    debt:{accounts:debtAccounts,connectedBalanceTotal,knownMonthlyCommitments,priorityNote:'Mission Control does not guess payoff priority when APR or balance data is incomplete.'}
+  };
+}
 function renderFinance(showToast=false){
   if(!installBridge())return;
-  const d=doc(),snap=win().__mcFinanceSnapshot?win().__mcFinanceSnapshot():null;
+  const d=doc(),rawSnap=win().__mcFinanceSnapshot?win().__mcFinanceSnapshot():null,snap=normalizeFinance(rawSnap);
   if(!snap){d.getElementById('finAsOf').textContent='Private finance data has not reached this device yet. Use Data & Sync to confirm this device is connected, then press Refresh.';d.getElementById('finKpis').innerHTML='<div class="fin-lock">Financial details stay behind your private Mission Control sync. They are not stored in the public website code.</div>';return}
   const c=snap.currentMonth||{},y=snap.yearToDate||{},debt=snap.debt||{};lastFinanceStamp=snap.asOf||'';
   d.getElementById('finAsOf').textContent=`${c.label||'Current month'} • Private finance snapshot through ${dateLabel(snap.asOf)}`;
