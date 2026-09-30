@@ -326,16 +326,19 @@ async function pushProjects(showToast=true){
   }
 }
 async function pullProjects(showToast=true){
-  const c=syncConfig();if(!c.url||!c.token)return;
+  const c=syncConfig();if(!c.url||!c.token)return false;
+  if(syncBusy){for(let i=0;i<30&&syncBusy;i++)await new Promise(r=>setTimeout(r,100));if(syncBusy)return false}
   syncBusy=true;setSyncStatus("Syncing…","Checking the shared Google Sheet for newer project updates.");
   try{
     const sep=c.url.includes("?")?"&":"?";const syncUrl=c.serverManaged?(c.url+"?t="+Date.now()):(c.url+sep+"token="+encodeURIComponent(c.token));const r=await fetch(syncUrl,{cache:"no-store",headers:{"Cache-Control":"no-cache"}});
+    if(!r.ok)throw new Error("Private sync HTTP "+r.status);
     const x=await r.json();if(!x.ok||!Array.isArray(x.projects))throw new Error(x.error||"Sync failed");
     state.projects=x.projects.map(p=>migrate({projects:[p]}).projects[0]);
     localStorage.setItem(KEY,JSON.stringify(state));renderAll();
     setSyncStatus("Connected","Projects are shared. Last pull: "+new Date().toLocaleTimeString());
     if(showToast)toast("Shared projects refreshed");
-  }catch(e){setSyncStatus("Sync problem",e.message||"Could not reach shared source");if(showToast)toast("Sync failed")}
+    return true;
+  }catch(e){setSyncStatus("Sync problem",e.message||"Could not reach shared source");if(showToast)toast("Sync failed");return false}
   finally{syncBusy=false}
 }
 async function syncNow(){await pullProjects(false);await pushProjects(false);toast("Mission Control synced")}
