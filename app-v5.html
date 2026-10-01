@@ -169,7 +169,7 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}.app{min-height:
 <section class="page" id="page-meals">
   <div class="hero">
     <div class="hero-top"><div><h2>Meals</h2><div class="hero-sub">The Butler household meal plan, grocery list, and what dinner is tonight.</div></div><div class="actions"><button class="btn primary" id="planMealsBtn">Plan Next Week</button><button class="btn" id="saveMealsBtn">Save Draft</button><button class="btn primary" id="approveMealsBtn">Approve Week</button></div></div>
-    <div class="hint" id="mealWeekLabel" style="margin-top:8px"></div><div class="hint" id="mealSaveStatus" style="margin-top:6px;font-weight:800"></div>
+    <div class="hint" id="mealWeekLabel" style="margin-top:8px"></div><div class="hint" id="mealSaveStatus" style="margin-top:6px;font-weight:800">Meals build 2026.10.01.4 • shared save ready</div>
     <div class="hero-grid" id="mealHeroGrid" style="margin-top:14px"></div>
   </div>
   <div class="section-title"><h3>This week</h3><div class="hint">Edit the meal directly. Prep notes are optional and only surface when useful.</div></div>
@@ -185,9 +185,9 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}.app{min-height:
     <div class="panel"><h3>Portable data</h3><p class="hint">Back up or move your Mission Control state.</p><div class="actions"><button class="btn" id="exportBtn">Export Data</button><label class="btn">Import Data<input type="file" id="importFile" accept=".json,application/json" hidden></label></div></div>
     <div class="panel"><h3>Shared project data</h3><p class="hint">Connect Mission Control to the Google Sheet web endpoint so edits here and edits to the shared Projects sheet stay in sync.</p>
 <div class="list">
-<label><span class="label">Google Apps Script Web App URL</span><input class="field" id="syncUrl" placeholder="https://script.google.com/macros/s/.../exec"></label>
-<label><span class="label">Sync token</span><input class="field" id="syncToken" type="password" placeholder="Your private token"></label>
-<label><span class="label">This device label</span><input class="field" id="deviceLabel" placeholder="Mission Control — Desktop"></label>
+<label><span class="label">Google Apps Script Web App URL</span><input class="field" id="syncUrl" autocomplete="off" placeholder="https://script.google.com/macros/s/.../exec"></label>
+<label><span class="label">Sync token</span><input class="field" id="syncToken" type="password" autocomplete="new-password" data-lpignore="true" data-1p-ignore="true" placeholder="Your private token"></label>
+<label><span class="label">This device label</span><input class="field" id="deviceLabel" autocomplete="off" placeholder="Mission Control — Desktop"></label>
 <div class="actions"><button class="btn primary" id="saveSyncBtn">Save Connection</button><button class="btn" id="syncNowBtn">Sync Now</button></div>
 <div class="item"><b id="syncStatus">Local mode</b><span id="syncDetail">Projects are currently stored on this device.</span></div>
 </div></div>
@@ -687,7 +687,7 @@ function importData(file){const r=new FileReader();r.onload=()=>{try{const x=mig
 
 document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>switchPage(b.dataset.page));
 newProjectBtn.onclick=()=>openProject();quickUpdateBtn.onclick=()=>openUpdate();captureBtn.onclick=()=>openModal("captureModal");
-mealRecipeSave.onclick=saveMealRecipe;mealIngredientsToGrocery.onclick=addRecipeIngredientsToGrocery;planMealsBtn.onclick=planNextWeek;saveMealsBtn.onclick=()=>saveMeals(true);approveMealsBtn.onclick=approveMeals;addGroceryBtn.onclick=addGrocery;addInventoryBtn.onclick=addInventory;
+(()=>{const by=id=>document.getElementById(id);const bind=(id,fn)=>{const el=by(id);if(el)el.addEventListener("click",fn)};bind("mealRecipeSave",saveMealRecipe);bind("mealIngredientsToGrocery",addRecipeIngredientsToGrocery);bind("planMealsBtn",planNextWeek);bind("saveMealsBtn",()=>saveMeals(true));bind("approveMealsBtn",approveMeals);bind("addGroceryBtn",addGrocery);bind("addInventoryBtn",addInventory)})();
 saveProject.onclick=saveProjectData;deleteProject.onclick=deleteProjectData;prApprove.onclick=approveProjectReview;prReject.onclick=rejectProjectReview;prMerge.onclick=mergeProjectReview;uProject.onchange=loadUpdate;interpretUpdate.onclick=interpret;saveUpdate.onclick=saveUpdateData;
 saveCapture.onclick=()=>{addCapture(captureText.value);captureText.value=""};captureModalSave.onclick=()=>{addCapture(captureModalText.value);captureModalText.value="";closeModal("captureModal")};
 [search,filterArea,filterStatus,filterAttention,filterPriority].forEach(el=>el.addEventListener(el===search?"input":"change",renderProjects));resetFilters.onclick=()=>{search.value="";filterArea.value="";filterStatus.value="";filterAttention.value="";filterPriority.value="";quickFilter="All";renderChips();renderProjects()};
