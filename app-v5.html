@@ -169,7 +169,7 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}.app{min-height:
 <section class="page" id="page-meals">
   <div class="hero">
     <div class="hero-top"><div><h2>Meals</h2><div class="hero-sub">The Butler household meal plan, grocery list, and what dinner is tonight.</div></div><div class="actions"><button class="btn primary" id="planMealsBtn">Plan Next Week</button><button class="btn" id="saveMealsBtn">Save Draft</button><button class="btn primary" id="approveMealsBtn">Approve Week</button></div></div>
-    <div class="hint" id="mealWeekLabel" style="margin-top:8px"></div>
+    <div class="hint" id="mealWeekLabel" style="margin-top:8px"></div><div class="hint" id="mealSaveStatus" style="margin-top:6px;font-weight:800"></div>
     <div class="hero-grid" id="mealHeroGrid" style="margin-top:14px"></div>
   </div>
   <div class="section-title"><h3>This week</h3><div class="hint">Edit the meal directly. Prep notes are optional and only surface when useful.</div></div>
@@ -634,8 +634,8 @@ function durableMealsPayload(){
   return {...existing,schemaVersion:1,householdId:"butler-household",draft,recipes:existing.recipes||[],groceryList:draft.groceryList,inventory:draft.inventory,rules:{...(existing.rules||{}),...(draft.settings||{})},mealHistory:existing.mealHistory||[],catalog:existing.catalog||{driveFileId:"1dl5niCGaXh4jPwPD9drZcYKoa9u2b6fH",name:"Butler Walmart Master Catalog.xlsx",itemCount:160,mealPlanEligibleCount:96}}
 }
 async function saveMeals(show=true){
-  ensureMealWeek();state.meals.updatedAt=new Date().toISOString();localStorage.setItem(KEY,JSON.stringify(state));
-  try{const r=await fetch("/api/meals",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({operation:"save_draft",actor:"Mission Control App",meals:durableMealsPayload()})});const x=await r.json();if(!x.ok)throw new Error(x.error||"Save failed");state.meals._durable=x.meals;if(show)toast("Meal-plan draft saved to Butler Household");return true}catch(e){if(show)toast("Draft saved locally — shared Meals sync failed");return false}
+  ensureMealWeek();state.meals.updatedAt=new Date().toISOString();localStorage.setItem(KEY,JSON.stringify(state));const btn=document.getElementById("saveMealsBtn"),status=document.getElementById("mealSaveStatus");if(btn){btn.disabled=true;btn.textContent="Saving…"}if(status){status.textContent="Saving draft to Butler Household…";status.style.color="var(--muted)"}
+  try{const r=await fetch("/api/meals",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({operation:"save_draft",actor:"Mission Control App",meals:durableMealsPayload()})});const x=await r.json();if(!r.ok||!x.ok)throw new Error(x.error||("Save failed ("+r.status+")"));state.meals._durable=x.meals;const when=new Date().toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"});if(status){status.textContent="Draft saved ✓ "+when;status.style.color="var(--good)"}if(btn)btn.textContent="Saved ✓";if(show)toast("Meal-plan draft saved to Butler Household");setTimeout(()=>{if(btn)btn.textContent="Save Draft"},1800);return true}catch(e){if(status){status.textContent="Not saved to shared Meals — "+String(e.message||e);status.style.color="var(--bad)"}if(btn)btn.textContent="Save Draft";if(show)toast("Shared Meals save failed");return false}finally{if(btn)btn.disabled=false}
 }
 async function approveMeals(){
   const ok=await saveMeals(false);if(!ok){toast("Cannot approve until the shared draft saves");return}
