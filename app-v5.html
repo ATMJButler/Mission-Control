@@ -645,7 +645,7 @@ async function planNextWeek(){
   ensureMealWeek();const btn=document.getElementById("planMealsBtn"),status=document.getElementById("mealSaveStatus");if(btn){btn.disabled=true;btn.textContent="Building…"}if(status){status.textContent="Building a real Butler Household draft…";status.style.color="var(--muted)"}
   try{
     const start=mealWeekStart(new Date(Date.now()+7*86400000)),weekStart=mealDateKey(start),source=mealsDurable||durableMealsPayload();
-    const r=await fetch("/api/meals/plan",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({householdId:"butler-household",weekStart,meals:source})});
+    const r=await fetch("/api/meals/plan",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({householdId:"butler-household",weekStart,meals:source,constraints:window.MC_MEAL_CONSTRAINTS||[]})});
     const x=await r.json();if(!r.ok||!x.ok||!x.draft)throw new Error(x.error||"Meal planner is not connected yet");
     state.meals=JSON.parse(JSON.stringify(x.draft));state.meals.status="draft";localStorage.setItem(KEY,JSON.stringify(state));renderMeals();if(status){status.textContent="Next week draft built ✓ Review before approval";status.style.color="var(--good)"}toast("Next week meal draft ready")
   }catch(e){if(status){status.textContent="Planner not ready — "+String(e.message||e);status.style.color="var(--warn)"}toast("Meal planner needs its planning service")}
