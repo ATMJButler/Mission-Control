@@ -13,11 +13,13 @@ const HEADERS = [
 
 function setupSheet(){const ss=SpreadsheetApp.getActive();let sh=ss.getSheetByName(SHEET_NAME);if(!sh)sh=ss.insertSheet(SHEET_NAME);ensureHeaders_(sh);sh.setFrozenRows(1);sh.autoResizeColumns(1,HEADERS.length)}
 
-function doGet(e){try{authorize_(e&&e.parameter&&e.parameter.token);return json_({ok:true,projects:readProjects_()})}catch(err){return json_({ok:false,error:String(err.message||err)})}}
+function doGet(e){try{authorize_(e&&e.parameter&&e.parameter.token);const resource=String((e&&e.parameter&&e.parameter.resource)||"projects");if(resource==="meals")return json_({ok:true,meals:readMeals_()});return json_({ok:true,projects:readProjects_()})}catch(err){return json_({ok:false,error:String(err.message||err)})}}
 
 function doPost(e){try{
   const body=JSON.parse((e&&e.postData&&e.postData.contents)||'{}');
-  authorize_(body.token);if(!Array.isArray(body.projects))throw new Error('projects array required');
+  authorize_(body.token);
+  if(body.resource==="meals"){const meals=writeMeals_(body.meals,body.operation||"save_draft",body.actor||"Mission Control");return json_({ok:true,meals:meals,updatedAt:new Date().toISOString()})}
+  if(!Array.isArray(body.projects))throw new Error('projects array required');
   const merged=mergeProjects_(readProjects_(),body.projects);writeProjects_(merged);
   return json_({ok:true,count:merged.length,projects:merged,updatedAt:new Date().toISOString()});
 }catch(err){return json_({ok:false,error:String(err.message||err)})}}
@@ -54,6 +56,15 @@ function normalizeProject_(p){const out=Object.assign({},p||{});if(!out.lastUpda
 function writeProjects_(projects){const sh=getSheet_();ensureHeaders_(sh);const rows=projects.map(p=>HEADERS.map(h=>{const v=p[h];if(h==='tags')return Array.isArray(v)?v.join(', '):(v||'');return(v===null||v===undefined)?'':v}));
   const currentRows=Math.max(sh.getLastRow()-1,0);if(currentRows)sh.getRange(2,1,currentRows,HEADERS.length).clearContent();if(rows.length)sh.getRange(2,1,rows.length,HEADERS.length).setValues(rows);sh.setFrozenRows(1)}
 
+function mealsSheet_(){const ss=SpreadsheetApp.getActive();let sh=ss.getSheetByName("Meals");if(!sh){sh=ss.insertSheet("Meals");sh.getRange(1,1,1,8).setValues([["key","householdId","schemaVersion","updatedAt","updatedBy","status","json","notes"]])}return sh}
+function readMeals_(){const sh=mealsSheet_();if(sh.getLastRow()<2)return null;const raw=sh.getRange(2,7).getValue();if(!raw)return null;return typeof raw==="object"?raw:JSON.parse(String(raw))}
+function writeMeals_(incoming,operation,actor){if(!incoming||typeof incoming!=="object")throw new Error("meals object required");const sh=mealsSheet_(),current=readMeals_()||{};let next=Object.assign({},current,incoming);next.schemaVersion=Number(next.schemaVersion||1);next.householdId=next.householdId||"butler-household";next.updatedAt=new Date().toISOString();next.updatedBy=actor||"Mission Control";
+  if(operation==="save_draft"){next.status="draft";next.approved=current.approved||next.approved||null}
+  else if(operation==="approve"){if(!next.draft)throw new Error("No draft meal plan to approve");next.approved=JSON.parse(JSON.stringify(next.draft));next.approved.approvedAt=next.updatedAt;next.approved.approvedBy=next.updatedBy;next.status="approved";next.mealHistory=Array.isArray(next.mealHistory)?next.mealHistory:[];next.mealHistory.push({weekStart:next.approved.weekStart||"",approvedAt:next.updatedAt,meals:(next.approved.days||[]).map(x=>x.meal).filter(Boolean)})}
+  else if(operation==="update_shared"){next.status=current.status||next.status||"draft"}
+  else throw new Error("Unsupported meals operation");
+  const row=[next.householdId,next.householdId,next.schemaVersion,next.updatedAt,next.updatedBy,next.status,JSON.stringify(next),"Mission Control Meals durable source of truth"];
+  sh.getRange(2,1,1,8).setValues([row]);return next}
 function ensureHeaders_(sh){const current=sh.getRange(1,1,1,Math.max(sh.getLastColumn(),1)).getValues()[0].map(String);HEADERS.forEach((h,idx)=>{if(current[idx]!==h)sh.getRange(1,idx+1).setValue(h)})}
 function headerMap_(sh){const headers=sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0].map(String),map={};headers.forEach((h,i)=>map[h]=i+1);return map}
 function getSheet_(){const sh=SpreadsheetApp.getActive().getSheetByName(SHEET_NAME);if(!sh)throw new Error('Projects sheet missing.');return sh}
