@@ -695,5 +695,27 @@ exportBtn.onclick=exportData;importFile.onchange=e=>e.target.files[0]&&importDat
 saveSyncBtn.onclick=saveSyncConfig;syncNowBtn.onclick=syncNow;initSyncUI();setInterval(()=>{if(syncConfig().url&&syncConfig().token&&!document.hidden)pullProjects(false)},60000);document.querySelectorAll(".modal-backdrop").forEach(m=>m.onclick=e=>{if(e.target===m)closeModal(m.id)});
 populateFilters();renderAll();loadMeals();
 </script>
+<script>
+(function(){
+  function bootMealsControls(){
+    var marker=document.getElementById("mealSaveStatus");
+    var save=document.getElementById("saveMealsBtn");
+    if(marker){marker.textContent="Meals controls online ✓ • build 2026.10.01.6";marker.style.color="var(--good)"}
+    if(save){
+      save.onclick=async function(){
+        save.disabled=true;save.textContent="Saving…";
+        if(marker){marker.textContent="Saving draft to Butler Household…";marker.style.color="var(--muted)"}
+        try{
+          if(typeof window.saveMeals!=="function")throw new Error("Meals save function unavailable");
+          await window.saveMeals(true);
+        }catch(e){
+          if(marker){marker.textContent="Meals control error — "+String(e&&e.message||e);marker.style.color="var(--bad)"}
+        }finally{save.disabled=false;if(save.textContent==="Saving…")save.textContent="Save Draft"}
+      };
+    }
+  }
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",bootMealsControls);else bootMealsControls();
+})();
+</script>
 </body>
 </html>
