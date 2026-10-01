@@ -15,6 +15,7 @@ const LIBRARY=[
 function dateAdd(weekStart,i){const d=new Date(weekStart+"T12:00:00");d.setDate(d.getDate()+i);return d.toISOString().slice(0,10)}
 function recentSet(meals){const h=Array.isArray(meals.mealHistory)?meals.mealHistory.slice(-3):[];return new Set(h.flatMap(x=>x.meals||[]).map(x=>String(x).toLowerCase()))}
 function inventoryText(meals){return (meals.inventory||[]).map(x=>String(x.item||"")+" "+String(x.qty||"")).join(" ").toLowerCase()}
+function constraintFor(constraints,date){return (constraints||[]).find(x=>x.date===date)||null}
 function scoreMeal(m,day,recent,inventory,used){
  let s=0;if(!recent.has(m.name.toLowerCase()))s+=12;if(!used.has(m.name))s+=20;if(day===0&&m.easy)s+=35;if(day!==0&&m.easy)s+=4;if(m.blackstone)s+=3;
  for(const ing of m.ingredients){const words=ing.toLowerCase().split(/\s+/).filter(w=>w.length>4);if(words.some(w=>inventory.includes(w)))s+=2}
@@ -26,10 +27,12 @@ export default async function handler(req,res){
   const b=typeof req.body==="string"?JSON.parse(req.body||"{}"):(req.body||{}),meals=b.meals||{},weekStart=b.weekStart;
   if(!weekStart)return res.status(400).json({ok:false,error:"weekStart required"});
   const recent=recentSet(meals),inventory=inventoryText(meals),used=new Set(),days=[];
-  for(let i=0;i<7;i++){const ranked=LIBRARY.slice().sort((a,z)=>scoreMeal(z,i,recent,inventory,used)-scoreMeal(a,i,recent,inventory,used));const pick=ranked[0];used.add(pick.name);days.push({date:dateAdd(weekStart,i),meal:pick.name,prep:i===0?"Easy Monday":pick.time+" dinner",status:"draft",recipe:{servings:pick.servings,time:pick.time,ingredients:pick.ingredients,instructions:pick.instructions,notes:pick.notes}})}
+  for(let i=0;i<7;i++){const date=dateAdd(weekStart,i),constraint=constraintFor(b.constraints,date);
+    if(constraint&&constraint.homeDinner===false){days.push({date,meal:constraint.mealLabel||"No household dinner planned",prep:constraint.reason||"Calendar constraint",status:"draft",calendarConstraint:constraint,recipe:{servings:"",time:"",ingredients:[],instructions:"",notes:constraint.reason||""}});continue}
+    const ranked=LIBRARY.slice().sort((a,z)=>scoreMeal(z,i,recent,inventory,used)-scoreMeal(a,i,recent,inventory,used));const pick=ranked[0];used.add(pick.name);days.push({date,meal:pick.name,prep:(constraint&&constraint.reason?constraint.reason+" • ":"")+(i===0?"Easy Monday":pick.time+" dinner"),status:"draft",calendarConstraint:constraint||null,recipe:{servings:pick.servings,time:pick.time,ingredients:pick.ingredients,instructions:pick.instructions,notes:pick.notes}})}
   const have=(meals.inventory||[]).map(x=>String(x.item||"").toLowerCase()),items=[],seen=new Set();
   for(const d of days)for(const ing of d.recipe.ingredients){const key=ing.toLowerCase();if(seen.has(key))continue;const words=key.split(/\s+/).filter(w=>w.length>4);if(have.some(h=>words.some(w=>h.includes(w))))continue;seen.add(key);items.push({item:ing,qty:"",done:false,sourceMeal:d.meal})}
-  const draft={weekStart,days,groceryList:items,inventory:meals.inventory||[],settings:meals.rules||{},status:"draft",planner:{version:"butler-v1",generatedAt:new Date().toISOString(),basis:["Butler meal library","recent approved history","household rules","current inventory"]}};
+  const draft={weekStart,days,groceryList:items,inventory:meals.inventory||[],settings:meals.rules||{},status:"draft",planner:{version:"butler-v1",generatedAt:new Date().toISOString(),basis:["Butler meal library","recent approved history","household rules","current inventory","calendar constraints"],constraints:b.constraints||[]}};
   return res.status(200).json({ok:true,draft})
  }catch(e){return res.status(500).json({ok:false,error:String(e&&e.message||e)})}
 }
