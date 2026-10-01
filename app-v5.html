@@ -168,7 +168,7 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}.app{min-height:
 
 <section class="page" id="page-meals">
   <div class="hero">
-    <div class="hero-top"><div><h2>Meals</h2><div class="hero-sub">The Butler household meal plan, grocery list, and what dinner is tonight.</div></div><div class="actions"><button class="btn primary" id="planMealsBtn">Plan Next Week</button><button class="btn" id="saveMealsBtn">Save Draft</button><button class="btn primary" id="approveMealsBtn">Approve Week</button></div></div>
+    <div class="hero-top"><div><h2>Meals</h2><div class="hero-sub">The Butler household meal plan, grocery list, and what dinner is tonight.</div></div><div class="actions"><button class="btn primary" id="planMealsBtn" type="button" onclick="planNextWeek()">Plan Next Week</button><button class="btn" id="saveMealsBtn" type="button" onclick="saveMeals(true)">Save Draft</button><button class="btn primary" id="approveMealsBtn" type="button" onclick="approveMeals()">Approve Week</button></div></div>
     <div class="hint" id="mealWeekLabel" style="margin-top:8px"></div><div class="hint" id="mealSaveStatus" style="margin-top:6px;font-weight:800">Meals build 2026.10.01.4 • shared save ready</div>
     <div class="hero-grid" id="mealHeroGrid" style="margin-top:14px"></div>
   </div>
@@ -687,7 +687,7 @@ function importData(file){const r=new FileReader();r.onload=()=>{try{const x=mig
 
 document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>switchPage(b.dataset.page));
 newProjectBtn.onclick=()=>openProject();quickUpdateBtn.onclick=()=>openUpdate();captureBtn.onclick=()=>openModal("captureModal");
-(()=>{const by=id=>document.getElementById(id);const bind=(id,fn)=>{const el=by(id);if(el)el.addEventListener("click",fn)};bind("mealRecipeSave",saveMealRecipe);bind("mealIngredientsToGrocery",addRecipeIngredientsToGrocery);bind("planMealsBtn",planNextWeek);bind("saveMealsBtn",()=>saveMeals(true));bind("approveMealsBtn",approveMeals);bind("addGroceryBtn",addGrocery);bind("addInventoryBtn",addInventory)})();
+(()=>{const by=id=>document.getElementById(id);const bind=(id,fn)=>{const el=by(id);if(el)el.addEventListener("click",fn)};bind("mealRecipeSave",saveMealRecipe);bind("mealIngredientsToGrocery",addRecipeIngredientsToGrocery);bind("addGroceryBtn",addGrocery);bind("addInventoryBtn",addInventory)})();
 saveProject.onclick=saveProjectData;deleteProject.onclick=deleteProjectData;prApprove.onclick=approveProjectReview;prReject.onclick=rejectProjectReview;prMerge.onclick=mergeProjectReview;uProject.onchange=loadUpdate;interpretUpdate.onclick=interpret;saveUpdate.onclick=saveUpdateData;
 saveCapture.onclick=()=>{addCapture(captureText.value);captureText.value=""};captureModalSave.onclick=()=>{addCapture(captureModalText.value);captureModalText.value="";closeModal("captureModal")};
 [search,filterArea,filterStatus,filterAttention,filterPriority].forEach(el=>el.addEventListener(el===search?"input":"change",renderProjects));resetFilters.onclick=()=>{search.value="";filterArea.value="";filterStatus.value="";filterAttention.value="";filterPriority.value="";quickFilter="All";renderChips();renderProjects()};
