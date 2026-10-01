@@ -168,7 +168,7 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}.app{min-height:
 
 <section class="page" id="page-meals">
   <div class="hero">
-    <div class="hero-top"><div><h2>Meals</h2><div class="hero-sub">The Butler household meal plan, grocery list, and what dinner is tonight.</div></div><div class="actions"><button class="btn primary" id="planMealsBtn">Plan Next Week</button><button class="btn" id="saveMealsBtn">Save Meals</button></div></div>
+    <div class="hero-top"><div><h2>Meals</h2><div class="hero-sub">The Butler household meal plan, grocery list, and what dinner is tonight.</div></div><div class="actions"><button class="btn primary" id="planMealsBtn">Plan Next Week</button><button class="btn" id="saveMealsBtn">Save Draft</button><button class="btn primary" id="approveMealsBtn">Approve Week</button></div></div>
     <div class="hint" id="mealWeekLabel" style="margin-top:8px"></div>
     <div class="hero-grid" id="mealHeroGrid" style="margin-top:14px"></div>
   </div>
@@ -626,7 +626,21 @@ function renderMeals(){
 function openMealRecipe(i){const x=state.meals.days[i];if(!x)return;x.recipe=x.recipe||{servings:"",time:"",ingredients:[],instructions:"",notes:""};mealRecipeIndex.value=String(i);mealRecipeTitle.textContent=(x.meal||"Meal")+" Recipe";mealRecipeServings.value=x.recipe.servings||"";mealRecipeTime.value=x.recipe.time||"";mealRecipeIngredients.value=(x.recipe.ingredients||[]).join("\n");mealRecipeInstructions.value=x.recipe.instructions||"";mealRecipeNotes.value=x.recipe.notes||"";openModal("mealRecipeModal")}
 function saveMealRecipe(){const i=Number(mealRecipeIndex.value),x=state.meals.days[i];if(!x)return;x.recipe={servings:mealRecipeServings.value.trim(),time:mealRecipeTime.value.trim(),ingredients:mealRecipeIngredients.value.split("\n").map(v=>v.trim()).filter(Boolean),instructions:mealRecipeInstructions.value.trim(),notes:mealRecipeNotes.value.trim()};state.meals.status="draft";saveMeals(false);closeModal("mealRecipeModal");renderMeals();toast("Recipe saved")}
 function addRecipeIngredientsToGrocery(){const i=Number(mealRecipeIndex.value),x=state.meals.days[i];if(!x)return;const ingredients=mealRecipeIngredients.value.split("\n").map(v=>v.trim()).filter(Boolean),existing=new Set(state.meals.groceryList.map(g=>String(g.item||"").toLowerCase()));let added=0;ingredients.forEach(item=>{if(!existing.has(item.toLowerCase())){state.meals.groceryList.push({item,qty:"",done:false,sourceMeal:x.meal||"",addedAt:new Date().toISOString()});existing.add(item.toLowerCase());added++}});saveMeals(false);renderMeals();toast(added+" ingredient"+(added===1?"":"s")+" added to grocery list")}
-async function saveMeals(show=true){ensureMealWeek();state.meals.updatedAt=new Date().toISOString();localStorage.setItem(KEY,JSON.stringify(state));if(show)toast("Household meals saved");queueProjectPush()}
+async function loadMeals(){
+  try{const r=await fetch("/api/meals?t="+Date.now(),{cache:"no-store"});const x=await r.json();if(x&&x.ok&&x.meals){state.meals=x.meals.draft||x.meals.approved||x.meals;state.meals._durable=x.meals;localStorage.setItem(KEY,JSON.stringify(state));renderMeals();return true}}catch(e){}return false
+}
+function durableMealsPayload(){
+  ensureMealWeek();const existing=(state.meals&&state.meals._durable)||{};const draft={weekStart:state.meals.weekStart||"",days:state.meals.days||[],groceryList:state.meals.groceryList||[],inventory:state.meals.inventory||[],settings:state.meals.settings||{},updatedAt:new Date().toISOString()};
+  return {...existing,schemaVersion:1,householdId:"butler-household",draft,recipes:existing.recipes||[],groceryList:draft.groceryList,inventory:draft.inventory,rules:{...(existing.rules||{}),...(draft.settings||{})},mealHistory:existing.mealHistory||[],catalog:existing.catalog||{driveFileId:"1dl5niCGaXh4jPwPD9drZcYKoa9u2b6fH",name:"Butler Walmart Master Catalog.xlsx",itemCount:160,mealPlanEligibleCount:96}}
+}
+async function saveMeals(show=true){
+  ensureMealWeek();state.meals.updatedAt=new Date().toISOString();localStorage.setItem(KEY,JSON.stringify(state));
+  try{const r=await fetch("/api/meals",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({operation:"save_draft",actor:"Mission Control App",meals:durableMealsPayload()})});const x=await r.json();if(!x.ok)throw new Error(x.error||"Save failed");state.meals._durable=x.meals;if(show)toast("Meal-plan draft saved to Butler Household");return true}catch(e){if(show)toast("Draft saved locally — shared Meals sync failed");return false}
+}
+async function approveMeals(){
+  const ok=await saveMeals(false);if(!ok){toast("Cannot approve until the shared draft saves");return}
+  try{const r=await fetch("/api/meals",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({operation:"approve",actor:"Mission Control App",meals:durableMealsPayload()})});const x=await r.json();if(!x.ok)throw new Error(x.error||"Approval failed");state.meals._durable=x.meals;state.meals.status="approved";localStorage.setItem(KEY,JSON.stringify(state));renderMeals();toast("Week approved for Butler Household")}catch(e){toast("Week was not approved — "+String(e.message||e))}
+}
 function planNextWeek(){
   ensureMealWeek();const current=state.meals.days.map(x=>x.meal).filter(Boolean),start=mealWeekStart(new Date(Date.now()+7*86400000));state.meals.weekStart=mealDateKey(start);state.meals.days=Array.from({length:7},(_,i)=>{const d=new Date(start);d.setDate(start.getDate()+i);return{date:mealDateKey(d),meal:i===0?"Easy Monday — choose a simple family meal":"",prep:"",status:"draft"}});state.meals.status="draft";state.meals.updatedAt=new Date().toISOString();localStorage.setItem(KEY,JSON.stringify(state));renderMeals();toast("Next week draft created — review before approval")}
 function addGrocery(){const item=prompt("Add grocery item");if(!item)return;state.meals.groceryList.push({item:item.trim(),qty:"",done:false,addedAt:new Date().toISOString()});saveMeals(false);renderMeals()}
@@ -673,13 +687,13 @@ function importData(file){const r=new FileReader();r.onload=()=>{try{const x=mig
 
 document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>switchPage(b.dataset.page));
 newProjectBtn.onclick=()=>openProject();quickUpdateBtn.onclick=()=>openUpdate();captureBtn.onclick=()=>openModal("captureModal");
-mealRecipeSave.onclick=saveMealRecipe;mealIngredientsToGrocery.onclick=addRecipeIngredientsToGrocery;planMealsBtn.onclick=planNextWeek;saveMealsBtn.onclick=()=>{state.meals.status="approved";saveMeals(true);renderMeals()};addGroceryBtn.onclick=addGrocery;addInventoryBtn.onclick=addInventory;
+mealRecipeSave.onclick=saveMealRecipe;mealIngredientsToGrocery.onclick=addRecipeIngredientsToGrocery;planMealsBtn.onclick=planNextWeek;saveMealsBtn.onclick=()=>saveMeals(true);approveMealsBtn.onclick=approveMeals;addGroceryBtn.onclick=addGrocery;addInventoryBtn.onclick=addInventory;
 saveProject.onclick=saveProjectData;deleteProject.onclick=deleteProjectData;prApprove.onclick=approveProjectReview;prReject.onclick=rejectProjectReview;prMerge.onclick=mergeProjectReview;uProject.onchange=loadUpdate;interpretUpdate.onclick=interpret;saveUpdate.onclick=saveUpdateData;
 saveCapture.onclick=()=>{addCapture(captureText.value);captureText.value=""};captureModalSave.onclick=()=>{addCapture(captureModalText.value);captureModalText.value="";closeModal("captureModal")};
 [search,filterArea,filterStatus,filterAttention,filterPriority].forEach(el=>el.addEventListener(el===search?"input":"change",renderProjects));resetFilters.onclick=()=>{search.value="";filterArea.value="";filterStatus.value="";filterAttention.value="";filterPriority.value="";quickFilter="All";renderChips();renderProjects()};
 exportBtn.onclick=exportData;importFile.onchange=e=>e.target.files[0]&&importData(e.target.files[0]);
 saveSyncBtn.onclick=saveSyncConfig;syncNowBtn.onclick=syncNow;initSyncUI();setInterval(()=>{if(syncConfig().url&&syncConfig().token&&!document.hidden)pullProjects(false)},60000);document.querySelectorAll(".modal-backdrop").forEach(m=>m.onclick=e=>{if(e.target===m)closeModal(m.id)});
-populateFilters();renderAll();
+populateFilters();renderAll();loadMeals();
 </script>
 </body>
 </html>
