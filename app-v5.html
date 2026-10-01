@@ -69,6 +69,7 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}.app{min-height:
   <button data-page="actions">Actions</button>
   <button data-page="inbox">Inbox</button>
   <button data-page="weekly">Weekly Review</button>
+  <button data-page="meals">Meals</button>
   <button data-page="wins">Momentum</button>
   <button data-page="dependencies">Dependencies</button>
   <button data-page="data">Data & Sync</button>
@@ -163,6 +164,20 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}.app{min-height:
 <section class="page" id="page-dependencies">
   <div class="section-title"><h3>Dependency map</h3><div class="hint">When an upstream project clears, downstream work should surface.</div></div>
   <div class="list" id="dependencyList"></div>
+</section>
+
+<section class="page" id="page-meals">
+  <div class="hero">
+    <div class="hero-top"><div><h2>Meals</h2><div class="hero-sub">The Butler household meal plan, grocery list, and what dinner is tonight.</div></div><div class="actions"><button class="btn primary" id="planMealsBtn">Plan Next Week</button><button class="btn" id="saveMealsBtn">Save Meals</button></div></div>
+    <div class="hint" id="mealWeekLabel" style="margin-top:8px"></div>
+    <div class="hero-grid" id="mealHeroGrid" style="margin-top:14px"></div>
+  </div>
+  <div class="section-title"><h3>This week</h3><div class="hint">Edit the meal directly. Prep notes are optional and only surface when useful.</div></div>
+  <div class="list" id="mealWeek"></div>
+  <div class="two-col" style="margin-top:12px">
+    <div class="panel"><div class="section-title" style="margin-top:0"><h3>Grocery list</h3><button class="btn" id="addGroceryBtn">+ Add</button></div><div class="hint">Shared Butler Household list. Check items off as they go into the cart.</div><div class="list" id="groceryList" style="margin-top:9px"></div></div>
+    <div class="panel"><div class="section-title" style="margin-top:0"><h3>Inventory</h3><button class="btn" id="addInventoryBtn">+ Add</button></div><div class="hint">Keep this lightweight — only track items that materially improve planning and shopping.</div><div class="list" id="mealInventory" style="margin-top:9px"></div></div>
+  </div>
 </section>
 
 <section class="page" id="page-data">
@@ -376,11 +391,11 @@ function migrate(x){
   x.household=x.household||{id:"butler-household",name:"Butler Household",version:1};
   x.users=x.users||[
     {id:"john",name:"John",role:"principal",status:"active",modules:["agenda","today","projects","inbox","weekly","money","budget","settings"],scopes:["private:john","household:shared"],onboarding:"complete"},
-    {id:"julie",name:"Julie",role:"secondary",status:"invited",modules:["agenda","today","budget","family"],scopes:["private:julie","household:shared"],onboarding:"not_started"}
+    {id:"julie",name:"Julie",role:"secondary",status:"invited",modules:["agenda","today","budget","family","meals"],scopes:["private:julie","household:shared"],onboarding:"not_started"}
   ];
   x.modulePolicy=x.modulePolicy||{
     principal:["agenda","today","projects","inbox","weekly","money","budget","settings"],
-    secondary:["agenda","today","budget","family"],
+    secondary:["agenda","today","budget","family","meals"],
     extended:["agenda","today","family"],
     readonly:["family"]
   };
@@ -391,6 +406,7 @@ function migrate(x){
     secondaryFinancialModules:["budget"]
   };
   x.projectPatterns=x.projectPatterns||[];
+  x.meals=x.meals||{version:1,householdId:"butler-household",weekStart:"",status:"draft",days:[],groceryList:[],inventory:[],settings:{showResponsibility:false,dairyFreeDefault:true,easyMonday:true,primaryStore:"Walmart",secondaryStore:"Aldi"},updatedAt:""};
   x.projects=x.projects.map(p=>({...p,
     scope:p.scope||"private:john",
     lifecycle:p.lifecycle||(p.deleted?"deleted":p.archived?"archived":p.status==="Completed"?"completed":"active"),
@@ -573,7 +589,32 @@ function renderChanges(){
   changesList.innerHTML=ps.length?ps.map(p=>`<div class="item" data-changed-project="${p.id}" style="cursor:pointer"><b>${esc(p.name)}</b><span>${new Date(changeTime(p)).toLocaleString()} • ${esc(p.lastUpdatedBy||"Previous data")}</span><small>${esc(p.currentState||p.nextAction||"Project updated")}</small></div>`).join(""):`<div class="item"><b>No project changes yet.</b></div>`;
   document.querySelectorAll("[data-changed-project]").forEach(el=>el.onclick=()=>openProject(el.dataset.changedProject))
 }
-function renderAll(){renderDate();renderHome();renderToday();renderChanges();renderChips();renderProjects();renderProjectReviews();renderActions();renderInbox();renderWeekly();renderWins();renderDependencies()}
+function mealDateKey(d){return d.toISOString().slice(0,10)}
+function mealWeekStart(d=new Date()){const x=new Date(d.getFullYear(),d.getMonth(),d.getDate()),day=x.getDay();x.setDate(x.getDate()-((day+6)%7));return x}
+function ensureMealWeek(){
+  state.meals=state.meals||{};const start=mealWeekStart(),key=mealDateKey(start);
+  if(!state.meals.weekStart){state.meals.weekStart=key}
+  if(!Array.isArray(state.meals.days)||!state.meals.days.length){state.meals.days=Array.from({length:7},(_,i)=>{const d=new Date(start);d.setDate(start.getDate()+i);return{date:mealDateKey(d),meal:"",prep:"",status:"draft"}})}
+  state.meals.groceryList=state.meals.groceryList||[];state.meals.inventory=state.meals.inventory||[];
+}
+function renderMeals(){
+  ensureMealWeek();const m=state.meals,todayKey=today(),todayMeal=m.days.find(x=>x.date===todayKey),planned=m.days.filter(x=>x.meal).length,groceries=m.groceryList.filter(x=>!x.done).length;
+  mealWeekLabel.textContent="Week of "+new Date(m.weekStart+"T12:00:00").toLocaleDateString(undefined,{month:"long",day:"numeric",year:"numeric"})+" • "+(m.status==="approved"?"Approved household plan":"Draft plan");
+  mealHeroGrid.innerHTML=[[todayMeal&&todayMeal.meal?todayMeal.meal:"Not planned","Dinner tonight",todayMeal&&todayMeal.prep?todayMeal.prep:"No prep note"],[planned+"/7","Meals planned","Across the current week"],[groceries,"Groceries left","Unchecked shared-list items"],[m.settings&&m.settings.primaryStore||"Walmart","Primary store","Shopping list default"]].map(x=>`<div class="hero-stat"><div class="n" style="font-size:${String(x[0]).length>18?"18px":"28px"}">${esc(x[0])}</div><div class="l">${x[1]}</div><div class="d">${esc(x[2])}</div></div>`).join("");
+  mealWeek.innerHTML=m.days.map((x,i)=>{const d=new Date(x.date+"T12:00:00"),label=d.toLocaleDateString(undefined,{weekday:"long",month:"short",day:"numeric"});return `<div class="item" style="display:grid;grid-template-columns:120px minmax(0,1fr);gap:10px;align-items:center"><div><b>${label}</b>${x.date===todayKey?'<span style="display:block;color:var(--accent);font-size:10px">TODAY</span>':''}</div><div><input class="field meal-name" data-meal-index="${i}" value="${esc(x.meal||"")}" placeholder="Dinner"><input class="field meal-prep" data-prep-index="${i}" value="${esc(x.prep||"")}" placeholder="Optional prep note" style="margin-top:6px"></div></div>`}).join("");
+  groceryList.innerHTML=m.groceryList.length?m.groceryList.map((x,i)=>`<div class="item"><label style="display:flex;gap:9px;align-items:center"><input type="checkbox" data-grocery-index="${i}" ${x.done?"checked":""}><span style="${x.done?"text-decoration:line-through;opacity:.6":""}">${esc(x.item||"")}${x.qty?" • "+esc(x.qty):""}</span></label></div>`).join(""):'<div class="item"><b>No grocery items yet.</b><span>Approve a meal plan or add something manually.</span></div>';
+  mealInventory.innerHTML=m.inventory.length?m.inventory.map((x,i)=>`<div class="item"><b>${esc(x.item||"")}</b><span>${esc(x.qty||"On hand")}</span><button class="btn ghost" data-inventory-remove="${i}" style="margin-top:6px">Remove</button></div>`).join(""):'<div class="item"><b>No tracked inventory yet.</b><span>Only add useful staples, leftovers, freezer items, or ingredients that affect the next plan.</span></div>';
+  document.querySelectorAll(".meal-name").forEach(el=>el.oninput=()=>{m.days[Number(el.dataset.mealIndex)].meal=el.value;m.status="draft"});
+  document.querySelectorAll(".meal-prep").forEach(el=>el.oninput=()=>{m.days[Number(el.dataset.prepIndex)].prep=el.value});
+  document.querySelectorAll("[data-grocery-index]").forEach(el=>el.onchange=()=>{m.groceryList[Number(el.dataset.groceryIndex)].done=el.checked;saveMeals(false)});
+  document.querySelectorAll("[data-inventory-remove]").forEach(el=>el.onclick=()=>{m.inventory.splice(Number(el.dataset.inventoryRemove),1);saveMeals(false);renderMeals()});
+}
+async function saveMeals(show=true){ensureMealWeek();state.meals.updatedAt=new Date().toISOString();localStorage.setItem(KEY,JSON.stringify(state));if(show)toast("Household meals saved");queueProjectPush()}
+function planNextWeek(){
+  ensureMealWeek();const current=state.meals.days.map(x=>x.meal).filter(Boolean),start=mealWeekStart(new Date(Date.now()+7*86400000));state.meals.weekStart=mealDateKey(start);state.meals.days=Array.from({length:7},(_,i)=>{const d=new Date(start);d.setDate(start.getDate()+i);return{date:mealDateKey(d),meal:i===0?"Easy Monday — choose a simple family meal":"",prep:"",status:"draft"}});state.meals.status="draft";state.meals.updatedAt=new Date().toISOString();localStorage.setItem(KEY,JSON.stringify(state));renderMeals();toast("Next week draft created — review before approval")}
+function addGrocery(){const item=prompt("Add grocery item");if(!item)return;state.meals.groceryList.push({item:item.trim(),qty:"",done:false,addedAt:new Date().toISOString()});saveMeals(false);renderMeals()}
+function addInventory(){const item=prompt("What do you already have?");if(!item)return;const qty=prompt("Quantity or note (optional)")||"On hand";state.meals.inventory.push({item:item.trim(),qty:qty.trim(),updatedAt:new Date().toISOString()});saveMeals(false);renderMeals()}
+function renderAll(){renderDate();renderHome();renderToday();renderChanges();renderChips();renderProjects();renderProjectReviews();renderActions();renderInbox();renderWeekly();renderWins();renderDependencies();renderMeals()}
 function openModal(id){document.getElementById(id).classList.add("show")}function closeModal(id){document.getElementById(id).classList.remove("show")}
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>closeModal(b.dataset.close));
 function openProject(id="",prefill=""){
@@ -615,6 +656,7 @@ function importData(file){const r=new FileReader();r.onload=()=>{try{const x=mig
 
 document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>switchPage(b.dataset.page));
 newProjectBtn.onclick=()=>openProject();quickUpdateBtn.onclick=()=>openUpdate();captureBtn.onclick=()=>openModal("captureModal");
+planMealsBtn.onclick=planNextWeek;saveMealsBtn.onclick=()=>{state.meals.status="approved";saveMeals(true);renderMeals()};addGroceryBtn.onclick=addGrocery;addInventoryBtn.onclick=addInventory;
 saveProject.onclick=saveProjectData;deleteProject.onclick=deleteProjectData;prApprove.onclick=approveProjectReview;prReject.onclick=rejectProjectReview;prMerge.onclick=mergeProjectReview;uProject.onchange=loadUpdate;interpretUpdate.onclick=interpret;saveUpdate.onclick=saveUpdateData;
 saveCapture.onclick=()=>{addCapture(captureText.value);captureText.value=""};captureModalSave.onclick=()=>{addCapture(captureModalText.value);captureModalText.value="";closeModal("captureModal")};
 [search,filterArea,filterStatus,filterAttention,filterPriority].forEach(el=>el.addEventListener(el===search?"input":"change",renderProjects));resetFilters.onclick=()=>{search.value="";filterArea.value="";filterStatus.value="";filterAttention.value="";filterPriority.value="";quickFilter="All";renderChips();renderProjects()};
