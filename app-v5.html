@@ -371,7 +371,21 @@ function migrate(x){
     householdFinanceConnectionOwner:"household",
     secondaryFinancialModules:["budget"]
   };
-  x.projects=x.projects.map(p=>({...p,scope:p.scope||"private:john",archived:!!p.archived,deleted:!!p.deleted,archiveReason:p.archiveReason||"",attention:p.attention||(p.status==="Completed"?"Complete":p.waitingOn?"Waiting":p.status==="Incubator / Someday"?"Parked":"Needs John"),outcome:p.outcome||p.description||"",doneDefinition:p.doneDefinition||"",dependencyId:p.dependencyId||"",tags:p.tags||[]}));
+  x.projectPatterns=x.projectPatterns||[];
+  x.projects=x.projects.map(p=>({...p,
+    scope:p.scope||"private:john",
+    lifecycle:p.lifecycle||(p.deleted?"deleted":p.archived?"archived":p.status==="Completed"?"completed":"active"),
+    reviewStatus:p.reviewStatus||"approved",
+    projectType:p.projectType||"",
+    archived:!!p.archived,deleted:!!p.deleted,archiveReason:p.archiveReason||"",
+    milestones:Array.isArray(p.milestones)?p.milestones:(p.milestone?[{id:"m-"+p.id+"-1",title:p.milestone,targetDate:p.milestoneDate||"",status:(p.status==="Completed"?"done":"not_started"),order:1}]:[]),
+    projectActions:Array.isArray(p.projectActions)?p.projectActions:(p.nextAction?[{id:"a-"+p.id+"-1",title:p.nextAction,status:"not_started",order:1,isNext:true}]:[]),
+    dependencies:Array.isArray(p.dependencies)?p.dependencies:(p.dependencyId?[{type:"project",projectId:p.dependencyId,status:"open"}]:[]),
+    reviewDraft:p.reviewDraft||null,
+    reviewFeedback:p.reviewFeedback||[],
+    attention:p.attention||(p.status==="Completed"?"Complete":p.waitingOn?"Waiting":p.status==="Incubator / Someday"?"Parked":"Needs John"),
+    outcome:p.outcome||p.description||"",doneDefinition:p.doneDefinition||"",dependencyId:p.dependencyId||"",tags:p.tags||[]
+  }));
   return x
 }
 let state=storage.load(),quickFilter="All",selectedProject=null;
