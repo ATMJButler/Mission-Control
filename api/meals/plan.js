@@ -1,0 +1,35 @@
+const LIBRARY=[
+ {name:"Smash burgers + oven fries",easy:true,blackstone:true,time:"30 min",servings:"5",ingredients:["2 lb ground beef","hamburger buns","frozen french fries","lettuce","tomato","pickles"],instructions:"Heat griddle. Form loose beef balls, smash and season, cook until browned, flip and add dairy-free cheese if wanted. Bake fries according to package. Serve burgers with toppings.",notes:"Easy Monday option. Dairy-free cheese by default."},
+ {name:"Chicken fajita bar",easy:false,blackstone:true,time:"35 min",servings:"5",ingredients:["2 lb chicken breasts","bell peppers","yellow onion","flour tortillas","fajita seasoning","salsa","avocado"],instructions:"Slice chicken, peppers and onion. Season chicken. Cook chicken on griddle, then peppers and onion until tender-crisp. Warm tortillas and serve as a build-your-own bar.",notes:"Keep toppings dairy-free by default."},
+ {name:"Walking tacos",easy:true,time:"25 min",servings:"5",ingredients:["2 lb ground turkey","taco seasoning","individual corn chip bags","shredded lettuce","tomato","salsa","dairy-free shredded cheese"],instructions:"Brown turkey and add taco seasoning. Chop toppings. Open chip bags and let everyone add taco meat and toppings directly to the bag.",notes:"Fast family meal; use dairy-free cheese by default."},
+ {name:"Chicken bacon ranch wraps",easy:true,time:"30 min",servings:"5",ingredients:["2 lb chicken breasts","bacon","flour tortillas","lettuce","tomato","dairy-free ranch"],instructions:"Cook bacon. Season and cook chicken, then slice. Fill tortillas with chicken, bacon, lettuce, tomato and ranch; roll and serve.",notes:"Use dairy-free ranch."},
+ {name:"Spaghetti with meat sauce",easy:true,time:"35 min",servings:"5",ingredients:["1.5 lb ground turkey","spaghetti","2 jars marinara sauce","garlic bread","salad kit"],instructions:"Boil spaghetti. Brown turkey, drain if needed, add marinara and simmer. Serve over pasta with salad and garlic bread.",notes:"Check garlic bread for dairy or use a dairy-free option."},
+ {name:"Sausage, potatoes & green beans",easy:false,time:"45 min",servings:"5",ingredients:["2 lb smoked sausage","3 lb potatoes","green beans","olive oil","garlic seasoning"],instructions:"Cut sausage and potatoes. Toss potatoes with oil and seasoning and roast until nearly tender. Add sausage and green beans and roast until browned and hot.",notes:"One-pan dinner."},
+ {name:"Loaded baked potatoes",easy:true,time:"50 min",servings:"5",ingredients:["5 large russet potatoes","1 lb bacon","broccoli","dairy-free shredded cheese","dairy-free sour cream"],instructions:"Bake potatoes until tender. Cook bacon and broccoli. Split potatoes and let everyone add toppings.",notes:"Hands-on prep is low even though bake time is longer."},
+ {name:"Sloppy joes + fries",easy:true,time:"25 min",servings:"5",ingredients:["2 lb ground turkey","sloppy joe sauce","hamburger buns","frozen french fries","raw vegetables"],instructions:"Bake fries. Brown turkey and stir in sloppy joe sauce. Simmer briefly and serve on buns with vegetables.",notes:"Very easy weeknight meal."},
+ {name:"Salsa chicken tacos",easy:true,time:"30 min",servings:"5",ingredients:["2 lb chicken breasts","salsa","flour tortillas","shredded lettuce","avocado","dairy-free shredded cheese"],instructions:"Cook chicken with salsa until done and shred or slice. Warm tortillas and serve with lettuce, avocado and dairy-free cheese.",notes:"Can use slow cooker if the day is busy."},
+ {name:"Garlic-herb chicken thighs + potatoes",easy:false,time:"45 min",servings:"5",ingredients:["2.5 lb chicken thighs","2 lb baby potatoes","green vegetable","olive oil","garlic herb seasoning"],instructions:"Season chicken and potatoes with oil and garlic-herb seasoning. Roast until chicken is cooked through and potatoes are browned. Prepare green vegetable alongside.",notes:"Simple sheet-pan dinner."},
+ {name:"Breakfast for dinner",easy:true,time:"25 min",servings:"5",ingredients:["eggs","breakfast sausage","pancake mix","dairy-free milk","maple syrup","fruit"],instructions:"Cook sausage. Prepare pancakes with dairy-free milk. Scramble eggs and serve everything with fruit and syrup.",notes:"Reliable easy-night option."},
+ {name:"BBQ pulled pork sandwiches",easy:false,time:"35 min",servings:"5",ingredients:["2 lb cooked pulled pork","BBQ sauce","hamburger buns","coleslaw mix","frozen potato wedges"],instructions:"Warm pulled pork with BBQ sauce. Bake potato wedges. Prepare slaw with dairy-free dressing if desired and serve pork on buns.",notes:"Best when pulled pork is already cooked or leftover."}
+];
+function dateAdd(weekStart,i){const d=new Date(weekStart+"T12:00:00");d.setDate(d.getDate()+i);return d.toISOString().slice(0,10)}
+function recentSet(meals){const h=Array.isArray(meals.mealHistory)?meals.mealHistory.slice(-3):[];return new Set(h.flatMap(x=>x.meals||[]).map(x=>String(x).toLowerCase()))}
+function inventoryText(meals){return (meals.inventory||[]).map(x=>String(x.item||"")+" "+String(x.qty||"")).join(" ").toLowerCase()}
+function scoreMeal(m,day,recent,inventory,used){
+ let s=0;if(!recent.has(m.name.toLowerCase()))s+=12;if(!used.has(m.name))s+=20;if(day===0&&m.easy)s+=35;if(day!==0&&m.easy)s+=4;if(m.blackstone)s+=3;
+ for(const ing of m.ingredients){const words=ing.toLowerCase().split(/\s+/).filter(w=>w.length>4);if(words.some(w=>inventory.includes(w)))s+=2}
+ return s
+}
+export default async function handler(req,res){
+ if(req.method!=="POST"){res.setHeader("Allow","POST");return res.status(405).json({ok:false,error:"Method not allowed"})}
+ try{
+  const b=typeof req.body==="string"?JSON.parse(req.body||"{}"):(req.body||{}),meals=b.meals||{},weekStart=b.weekStart;
+  if(!weekStart)return res.status(400).json({ok:false,error:"weekStart required"});
+  const recent=recentSet(meals),inventory=inventoryText(meals),used=new Set(),days=[];
+  for(let i=0;i<7;i++){const ranked=LIBRARY.slice().sort((a,z)=>scoreMeal(z,i,recent,inventory,used)-scoreMeal(a,i,recent,inventory,used));const pick=ranked[0];used.add(pick.name);days.push({date:dateAdd(weekStart,i),meal:pick.name,prep:i===0?"Easy Monday":pick.time+" dinner",status:"draft",recipe:{servings:pick.servings,time:pick.time,ingredients:pick.ingredients,instructions:pick.instructions,notes:pick.notes}})}
+  const have=(meals.inventory||[]).map(x=>String(x.item||"").toLowerCase()),items=[],seen=new Set();
+  for(const d of days)for(const ing of d.recipe.ingredients){const key=ing.toLowerCase();if(seen.has(key))continue;const words=key.split(/\s+/).filter(w=>w.length>4);if(have.some(h=>words.some(w=>h.includes(w))))continue;seen.add(key);items.push({item:ing,qty:"",done:false,sourceMeal:d.meal})}
+  const draft={weekStart,days,groceryList:items,inventory:meals.inventory||[],settings:meals.rules||{},status:"draft",planner:{version:"butler-v1",generatedAt:new Date().toISOString(),basis:["Butler meal library","recent approved history","household rules","current inventory"]}};
+  return res.status(200).json({ok:true,draft})
+ }catch(e){return res.status(500).json({ok:false,error:String(e&&e.message||e)})}
+}
