@@ -107,6 +107,10 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}.app{min-height:
 </section>
 
 <section class="page" id="page-projects">
+  <div id="projectReviewSection" style="display:none;margin-bottom:16px">
+    <div class="section-title"><h3>Projects to Review</h3><div class="hint">Mission Control drafted these. Nothing becomes active until you approve the build.</div></div>
+    <div class="priority-grid" id="projectReviewQueue"></div>
+  </div>
   <div class="toolbar">
     <input class="field wide" id="search" placeholder="Search projects, tags, notes, owners, dependencies...">
     <select class="field" id="filterArea"></select>
@@ -221,6 +225,21 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}.app{min-height:
 <div class="full"><label class="label">Notes</label><textarea class="field" id="pNotes"></textarea></div>
 </div>
 <div class="modal-actions"><button class="btn danger hidden" id="deleteProject">Delete</button><button class="btn" data-close="projectModal">Cancel</button><button class="btn primary" id="saveProject">Save Project</button></div>
+</div></div>
+
+<div class="modal-backdrop" id="projectReviewModal"><div class="modal" style="width:min(820px,100%)">
+<h2 id="projectReviewTitle">Review Project Build</h2><div class="sub">Adjust the plan before Mission Control activates it. Your changes become feedback for similar future projects.</div>
+<input type="hidden" id="prId">
+<div class="form-grid" style="margin-top:14px">
+<div class="full"><label class="label">Outcome</label><textarea class="field" id="prOutcome"></textarea></div>
+<div class="full"><label class="label">Done definition</label><textarea class="field" id="prDone"></textarea></div>
+<div class="full"><label class="label">Proposed milestones — one per line</label><textarea class="field" id="prMilestones"></textarea></div>
+<div class="full"><label class="label">Dependencies — one per line</label><textarea class="field" id="prDependencies"></textarea></div>
+<div class="full"><label class="label">First next action</label><input class="field" id="prNext"></div>
+<div><label class="label">Suggested priority</label><select class="field" id="prPriority"></select></div>
+<div><label class="label">Suggested deadline</label><input class="field" type="date" id="prDeadline"></div>
+</div>
+<div class="modal-actions"><button class="btn danger" id="prReject" type="button">Not a Project</button><button class="btn" id="prMerge" type="button">Merge with Existing</button><button class="btn" data-close="projectReviewModal" type="button">Cancel</button><button class="btn primary" id="prApprove" type="button">Approve Project</button></div>
 </div></div>
 
 <div class="modal-backdrop" id="captureModal"><div class="modal">
@@ -477,6 +496,34 @@ function populateFilters(){
 function renderChips(){const ls=["All","Today Focus","Needs John","Moving","Waiting","Stale","Upcoming","Incubator"];projectChips.innerHTML=ls.map(x=>`<button class="chip ${quickFilter===x?"active":""}" data-q="${x}">${x}</button>`).join("");document.querySelectorAll("[data-q]").forEach(b=>b.onclick=()=>{quickFilter=b.dataset.q;renderChips();renderProjects()})}
 function filteredProjects(){
   const q=search.value.trim().toLowerCase();return state.projects.filter(p=>!p.deleted&&!p.archived).filter(p=>{if(filterArea.value&&p.area!==filterArea.value)return false;if(filterStatus.value&&p.status!==filterStatus.value)return false;if(filterAttention.value&&p.attention!==filterAttention.value)return false;if(filterPriority.value&&p.priority!==filterPriority.value)return false;if(quickFilter==="Today Focus"&&attentionReasons(p).length===0)return false;if(quickFilter==="Needs John"&&p.attention!=="Needs John")return false;if(quickFilter==="Moving"&&p.attention!=="Moving")return false;if(quickFilter==="Waiting"&&p.attention!=="Waiting")return false;if(quickFilter==="Stale"&&!stale(p))return false;if(quickFilter==="Upcoming"&&p.status!=="Upcoming")return false;if(quickFilter==="Incubator"&&p.status!=="Incubator / Someday")return false;if(q){const dep=state.projects.find(x=>x.id===p.dependencyId);const hay=[p.name,p.area,p.status,p.attention,p.priority,p.description,p.outcome,p.doneDefinition,p.currentState,p.nextAction,p.owner,p.waitingOn,p.notes,(p.tags||[]).join(" "),dep?dep.name:""].join(" ").toLowerCase();if(!hay.includes(q))return false}return true})}
+function reviewDrafts(){return state.projects.filter(p=>!p.deleted&&!p.archived&&(p.lifecycle==="draft"||p.reviewStatus==="pending"))}
+function renderProjectReviews(){
+  const section=document.getElementById("projectReviewSection"),box=document.getElementById("projectReviewQueue");if(!section||!box)return;
+  const drafts=reviewDrafts();section.style.display=drafts.length?"block":"none";
+  box.innerHTML=drafts.map(p=>{const d=p.reviewDraft||{};const ms=Array.isArray(d.milestones)?d.milestones:(p.milestones||[]).map(x=>x.title);return `<div class="priority-card" data-review-project="${p.id}" style="border-top-color:${color(p.area)};cursor:pointer"><div class="rank">DRAFT • ${esc(p.area)}</div><h4>${esc(p.name)}</h4><div class="desc">${esc(d.outcome||p.outcome||p.description||"Outcome needs review.")}</div><div class="hint" style="margin-top:8px">${ms.length} proposed milestone${ms.length===1?"":"s"} • Review before activation</div></div>`}).join("");
+  document.querySelectorAll("[data-review-project]").forEach(el=>el.onclick=()=>openProjectReview(el.dataset.reviewProject));
+}
+function openProjectReview(id){
+  const p=state.projects.find(x=>x.id===id);if(!p)return;const d=p.reviewDraft||{};
+  prId.value=p.id;projectReviewTitle.textContent="Review: "+p.name;prOutcome.value=d.outcome||p.outcome||"";prDone.value=d.doneDefinition||p.doneDefinition||"";
+  prMilestones.value=(Array.isArray(d.milestones)?d.milestones:(p.milestones||[]).map(x=>x.title)).join("\n");
+  prDependencies.value=(Array.isArray(d.dependencies)?d.dependencies:[]).map(x=>typeof x==="string"?x:(x.label||x.name||"")).filter(Boolean).join("\n");
+  prNext.value=d.nextAction||p.nextAction||"";prPriority.innerHTML=PRIORITIES.map(x=>`<option>${x}</option>`).join("");prPriority.value=d.priority||p.priority||"Normal";prDeadline.value=d.deadline||p.deadline||"";openModal("projectReviewModal")
+}
+async function approveProjectReview(){
+  const p=state.projects.find(x=>x.id===prId.value);if(!p)return;const original=JSON.stringify(p.reviewDraft||{});
+  const titles=prMilestones.value.split("\n").map(x=>x.trim()).filter(Boolean),deps=prDependencies.value.split("\n").map(x=>x.trim()).filter(Boolean);
+  p.outcome=prOutcome.value.trim();p.doneDefinition=prDone.value.trim();p.nextAction=prNext.value.trim();p.priority=prPriority.value;p.deadline=prDeadline.value;
+  p.milestones=titles.map((title,i)=>({id:"m-"+p.id+"-"+(i+1),title,status:"not_started",order:i+1,targetDate:""}));
+  p.projectActions=p.nextAction?[{id:"a-"+p.id+"-1",title:p.nextAction,status:"not_started",order:1,isNext:true}]:[];
+  p.dependencies=deps.map((label,i)=>({id:"d-"+p.id+"-"+(i+1),type:"external",label,status:"open"}));
+  p.reviewFeedback=p.reviewFeedback||[];p.reviewFeedback.push({reviewedAt:new Date().toISOString(),originalDraft:original,approved:{outcome:p.outcome,doneDefinition:p.doneDefinition,milestones:titles,dependencies:deps,nextAction:p.nextAction,priority:p.priority,deadline:p.deadline}});
+  p.lifecycle="active";p.reviewStatus="approved";p.status=p.status==="Completed"?"Active":(p.status||"Active");p.reviewDraft=null;stampProject(p,"Mission Control — Project Review");ensureAction(p);localStorage.setItem(KEY,JSON.stringify(state));closeModal("projectReviewModal");renderAll();setSyncStatus("Syncing…","Saving approved project build.");await pushProjects(true)
+}
+async function rejectProjectReview(){
+  const p=state.projects.find(x=>x.id===prId.value);if(!p)return;p.lifecycle="deleted";p.deleted=true;p.deletedAt=new Date().toISOString();p.reviewStatus="rejected_not_project";p.reviewFeedback=p.reviewFeedback||[];p.reviewFeedback.push({reviewedAt:new Date().toISOString(),decision:"not_a_project"});stampProject(p,"Mission Control — Project Review");localStorage.setItem(KEY,JSON.stringify(state));closeModal("projectReviewModal");renderAll();await pushProjects(true)
+}
+function mergeProjectReview(){const p=state.projects.find(x=>x.id===prId.value);if(!p)return;const candidates=state.projects.filter(x=>x.id!==p.id&&!x.deleted&&!x.archived&&x.lifecycle!=="draft");const names=candidates.slice(0,12).map((x,i)=>(i+1)+". "+x.name).join("\n");const answer=prompt("Merge this draft into which existing project? Enter the number:\n\n"+names);const ix=Number(answer)-1;if(!Number.isInteger(ix)||!candidates[ix])return;const target=candidates[ix];target.notes=(target.notes?target.notes+"\n\n":"")+"Merged draft "+p.name+": "+(prOutcome.value.trim()||p.outcome||p.description||"");stampProject(target,"Mission Control — Project Review");p.deleted=true;p.lifecycle="deleted";p.reviewStatus="merged";p.mergedIntoProjectId=target.id;stampProject(p,"Mission Control — Project Review");localStorage.setItem(KEY,JSON.stringify(state));closeModal("projectReviewModal");renderAll();pushProjects(true)}
 function renderProjects(){
   const ps=filteredProjects().sort((a,b)=>priorityScore(b)-priorityScore(a));projectCount.textContent=`${ps.length} shown`;
   projectBoard.innerHTML=ps.length?ps.map(p=>{const age=touchAge(p),ageClass=age>20?"bad":age>10?"warn":"";const dep=state.projects.find(x=>x.id===p.dependencyId);return `<article class="card" data-id="${p.id}"><div class="card-top"><div><h4>${esc(p.name)}</h4><div class="badges"><span class="badge">${esc(p.area)}</span><span class="badge ${attentionClass(p.attention)}">${esc(p.attention)}</span><span class="badge">${esc(p.status)}</span><span class="badge">${esc(p.priority)}</span>${stale(p)?`<span class="badge waiting">Stale ${touchAge(p)}d</span>`:""}</div></div><button class="btn ghost edit" data-id="${p.id}">Edit</button></div><div class="desc">${esc(p.description||"")}</div><div class="state"><b>Where we are:</b> ${esc(p.currentState||"—")}</div><div class="next"><b>Current next action</b>${esc(p.nextAction||"Define next action.")}</div><div class="meta"><div>Owner<b>${esc(p.owner||"—")}</b></div><div>Last touched<b class="age ${ageClass}">${age}d ago • ${esc(p.lastUpdatedBy||"Previous data")}</b></div><div>Waiting on<b>${esc(p.waitingOn||"Nothing")}</b></div><div>Dependency<b>${esc(dep?dep.name:"None")}</b></div></div><div class="progress"><div style="width:${Math.max(0,Math.min(100,Number(p.progress)||0))}%"></div></div></article>`}).join(""):`<div class="item"><b>No matching projects.</b></div>`;
@@ -526,7 +573,7 @@ function renderChanges(){
   changesList.innerHTML=ps.length?ps.map(p=>`<div class="item" data-changed-project="${p.id}" style="cursor:pointer"><b>${esc(p.name)}</b><span>${new Date(changeTime(p)).toLocaleString()} • ${esc(p.lastUpdatedBy||"Previous data")}</span><small>${esc(p.currentState||p.nextAction||"Project updated")}</small></div>`).join(""):`<div class="item"><b>No project changes yet.</b></div>`;
   document.querySelectorAll("[data-changed-project]").forEach(el=>el.onclick=()=>openProject(el.dataset.changedProject))
 }
-function renderAll(){renderDate();renderHome();renderToday();renderChanges();renderChips();renderProjects();renderActions();renderInbox();renderWeekly();renderWins();renderDependencies()}
+function renderAll(){renderDate();renderHome();renderToday();renderChanges();renderChips();renderProjects();renderProjectReviews();renderActions();renderInbox();renderWeekly();renderWins();renderDependencies()}
 function openModal(id){document.getElementById(id).classList.add("show")}function closeModal(id){document.getElementById(id).classList.remove("show")}
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>closeModal(b.dataset.close));
 function openProject(id="",prefill=""){
@@ -568,7 +615,7 @@ function importData(file){const r=new FileReader();r.onload=()=>{try{const x=mig
 
 document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>switchPage(b.dataset.page));
 newProjectBtn.onclick=()=>openProject();quickUpdateBtn.onclick=()=>openUpdate();captureBtn.onclick=()=>openModal("captureModal");
-saveProject.onclick=saveProjectData;deleteProject.onclick=deleteProjectData;uProject.onchange=loadUpdate;interpretUpdate.onclick=interpret;saveUpdate.onclick=saveUpdateData;
+saveProject.onclick=saveProjectData;deleteProject.onclick=deleteProjectData;prApprove.onclick=approveProjectReview;prReject.onclick=rejectProjectReview;prMerge.onclick=mergeProjectReview;uProject.onchange=loadUpdate;interpretUpdate.onclick=interpret;saveUpdate.onclick=saveUpdateData;
 saveCapture.onclick=()=>{addCapture(captureText.value);captureText.value=""};captureModalSave.onclick=()=>{addCapture(captureModalText.value);captureModalText.value="";closeModal("captureModal")};
 [search,filterArea,filterStatus,filterAttention,filterPriority].forEach(el=>el.addEventListener(el===search?"input":"change",renderProjects));resetFilters.onclick=()=>{search.value="";filterArea.value="";filterStatus.value="";filterAttention.value="";filterPriority.value="";quickFilter="All";renderChips();renderProjects()};
 exportBtn.onclick=exportData;importFile.onchange=e=>e.target.files[0]&&importData(e.target.files[0]);
