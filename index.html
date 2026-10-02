@@ -9,8 +9,8 @@
 <style>
 html,body{width:100%;height:100%;margin:0;background:#07111f;overflow:hidden}#core{display:block;width:100%;height:100%;border:0;background:#07111f}
 </style>
-</head>
-<body>
+<link rel="stylesheet" href="./auth-ui.css">\n<script src="./auth-ui.js" defer></script>\n</head>
+<body>\n<div id="mcAuthGate"><div class="mc-auth-card"><h1>Mission Control</h1><p>Sign in to your household workspace.</p><div id="mcClerkMount"></div><div class="mc-auth-state" id="mcAuthState">Loading secure sign-in…</div></div></div>
 <iframe id="core" src="./app-v5.html?v=20261001-meals10" title="Mission Control"></iframe>
 <script>
 const frame=document.getElementById('core');
