@@ -1,3 +1,8 @@
+import {installClerkIdentityAdapter} from "../auth/clerk-adapter.js";
+import {requireVerifiedIdentity} from "../auth/session.js";
+import {installUpstreamDirectoryAdapter} from "../auth/upstream-directory.js";
+import {resolveAccessContext} from "../auth/directory.js";
+import {authorize} from "../auth/authorization.js";
 export default async function handler(req,res){
   res.setHeader("Cache-Control","no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
   res.setHeader("Pragma","no-cache");
@@ -15,8 +20,13 @@ export default async function handler(req,res){
       return;
     }
     if(req.method==="POST"){
+      installClerkIdentityAdapter();installUpstreamDirectoryAdapter();
+      const identity=await requireVerifiedIdentity(req);
+      const ctx=await resolveAccessContext(identity,"butler-household");
+      const auth=authorize({user:ctx.user,household:ctx.household,membership:ctx.membership,resource:"projects",operation:"update_project"});
+      if(!auth.ok)return res.status(403).json({ok:false,error:"Forbidden",reason:auth.reason});
       const payload=typeof req.body==="string"?JSON.parse(req.body||"{}"):(req.body||{});
-      payload.token=token;
+      payload.token=token;payload.actor=ctx.user.userId;payload.householdId=ctx.household.householdId;
       const r=await fetch(upstream,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload),cache:"no-store"});
       const body=await r.text();
       res.status(r.status).setHeader("Content-Type","application/json; charset=utf-8").send(body);
