@@ -1,3 +1,4 @@
+import {installUpstreamDirectoryAdapter} from "../../auth/upstream-directory.js";
 import {installClerkIdentityAdapter} from "../../auth/clerk-adapter.js";
 import {requireVerifiedIdentity} from "../../auth/session.js";
 import {resolveAccessContext} from "../../auth/directory.js";
@@ -5,6 +6,7 @@ import {authorize} from "../../auth/authorization.js";
 
 export default async function handler(req,res){
   installClerkIdentityAdapter();
+  installUpstreamDirectoryAdapter();
   res.setHeader("Cache-Control","no-store");
   if(req.method!=="POST"){res.setHeader("Allow","POST");return res.status(405).json({ok:false,error:"Method not allowed"});}
   try{
