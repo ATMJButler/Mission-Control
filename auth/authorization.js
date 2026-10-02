@@ -17,7 +17,7 @@ const POLICIES = Object.freeze({
   meals: Object.freeze({
     read: ["principal","secondary","extended"],
     save_draft: ["principal","secondary"],
-    approve_week: ["principal","secondary"]
+    approve: ["principal","secondary"]
   }),
   identity: Object.freeze({
     read_self: ["principal","secondary","extended"],
