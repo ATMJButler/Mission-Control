@@ -10,7 +10,7 @@ async function callDirectory(payload){
     const e=new Error("Identity directory upstream returned non-JSON response");
     e.statusCode=502;e.code="DIRECTORY_UPSTREAM_NON_JSON";throw e;
   }
-  if(!r.ok||!body.ok){const e=new Error(body.reason||body.error||"Directory access denied");e.code=body.reason||"DIRECTORY_DENIED";e.statusCode=body.error==="BOOTSTRAP_CLOSED"?409:403;throw e}
+  if(!r.ok||!body.ok){const reason=body.reason||body.error||"DIRECTORY_DENIED",e=new Error(reason);e.code=reason;e.statusCode=reason==="BOOTSTRAP_CLOSED"?409:403;throw e}
   return body;
 }
 export function installUpstreamDirectoryAdapter(){
