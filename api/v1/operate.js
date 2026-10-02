@@ -1,3 +1,4 @@
+import {requireMissionControlOrigin} from "../../auth/origin.js";
 import {installUpstreamDirectoryAdapter} from "../../auth/upstream-directory.js";
 import {installClerkIdentityAdapter} from "../../auth/clerk-adapter.js";
 import {requireVerifiedIdentity} from "../../auth/session.js";
@@ -10,6 +11,7 @@ export default async function handler(req,res){
   res.setHeader("Cache-Control","no-store");
   if(req.method!=="POST"){res.setHeader("Allow","POST");return res.status(405).json({ok:false,error:"Method not allowed"});}
   try{
+    requireMissionControlOrigin(req);
     const identity=await requireVerifiedIdentity(req);
     const body=typeof req.body==="string"?JSON.parse(req.body||"{}"):(req.body||{});
     const householdId=String(body.householdId||"");
