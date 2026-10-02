@@ -392,7 +392,7 @@ async function syncNow(){await pullProjects(false);await pushProjects(false);toa
 function initSyncUI(){
   const c=syncConfig(),u=document.getElementById("syncUrl"),t=document.getElementById("syncToken"),d=document.getElementById("deviceLabel");
   if(u)u.value=c.url||"";if(t)t.value=c.token||"";if(d)d.value=c.deviceLabel||defaultDeviceLabel();
-  if(c.url&&c.token){setSyncStatus("Connected",c.serverManaged?"Protected Mission Control sync configured. Refreshing…":"Shared project source configured. Refreshing…");pullProjects(false)}
+  if(c.url&&c.token){setSyncStatus("Connected",c.serverManaged?"Protected Mission Control sync configured. Waiting for identity…":"Shared project source configured. Refreshing…");if(c.serverManaged){const start=()=>{if(window.Clerk&&window.Clerk.isSignedIn){setSyncStatus("Connected","Identity verified. Refreshing shared projects…");pullProjects(false);return true}return false};if(!start()){let tries=0;const timer=setInterval(()=>{tries++;if(start()||tries>=80)clearInterval(timer)},250)}}else pullProjects(false)}
   else setSyncStatus("Local mode","Add the Apps Script URL and token to share projects across devices.");
 }
 function saveSyncConfig(){
