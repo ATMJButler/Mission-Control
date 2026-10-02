@@ -4,7 +4,7 @@
  * Authentication secrets are stored only in Apps Script Script Properties; never in source.
  */
 const SHEET_NAME = 'Projects';
-const MC_BUILD_ID = '2026-10-02-auth-i2-audit-v1';
+const MC_BUILD_ID = '2026-10-02-auth-hardening-v2';
 const HEADERS = [
 'id','name','area','status','priority','attention','owner','description','outcome',
 'doneDefinition','currentState','nextAction','waitingOn','waitingSince','followupDate',
