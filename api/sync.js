@@ -32,8 +32,12 @@ export default async function handler(req,res){
       const ctx=await resolveAccessContext(identity,"butler-household");
       const auth=authorize({user:ctx.user,household:ctx.household,membership:ctx.membership,resource:"projects",operation:"update_project"});
       if(!auth.ok)return res.status(403).json({ok:false,error:"Forbidden",reason:auth.reason});
-      const payload=typeof req.body==="string"?JSON.parse(req.body||"{}"):(req.body||{});
-      payload.token=token;payload.actor=ctx.user.userId;payload.householdId=ctx.household.householdId;
+      const incoming=typeof req.body==="string"?JSON.parse(req.body||"{}"):(req.body||{});
+      const allowedKeys=new Set(["projects","source"]);
+      const unknown=Object.keys(incoming).filter(k=>!allowedKeys.has(k));
+      if(unknown.length)return res.status(400).json({ok:false,error:"Unsupported legacy sync fields",fields:unknown});
+      if(!Array.isArray(incoming.projects))return res.status(400).json({ok:false,error:"projects array required"});
+      const payload={token,resource:"projects",operation:"legacy_merge",projects:incoming.projects,source:String(incoming.source||""),actor:ctx.user.userId,householdId:ctx.household.householdId};
       const r=await fetch(upstream,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload),cache:"no-store"});
       const body=await r.text();
       res.status(r.status).setHeader("Content-Type","application/json; charset=utf-8").send(body);
