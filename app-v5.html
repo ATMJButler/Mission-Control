@@ -285,7 +285,7 @@ const STATUSES=["Today","Active","Waiting / Blocked","Upcoming","Incubator / Som
 const PRIORITIES=["Critical","High","Normal","Low"];
 const ATTENTION=["Needs John","Moving","Waiting","Parked","Complete"];
 const LEGACY_KEY="johnMissionControl.v3";
-function storageKey(){const uid=window.Clerk&&window.Clerk.user&&window.Clerk.user.id;return uid?"missionControl.v4."+uid:null}
+function storageKey(){let uid=null;try{uid=(window.Clerk&&window.Clerk.user&&window.Clerk.user.id)||(window.parent&&window.parent!==window&&window.parent.Clerk&&window.parent.Clerk.user&&window.parent.Clerk.user.id)}catch(_e){}return uid?"missionControl.v4."+uid:null}
 const STALE_DAYS=10;
 
 const seed=[
