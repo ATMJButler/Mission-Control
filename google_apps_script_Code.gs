@@ -4,6 +4,7 @@
  * Authentication secrets are stored only in Apps Script Script Properties; never in source.
  */
 const SHEET_NAME = 'Projects';
+const MC_BUILD_ID = '2026-10-02-auth-i2-audit-v1';
 const HEADERS = [
 'id','name','area','status','priority','attention','owner','description','outcome',
 'doneDefinition','currentState','nextAction','waitingOn','waitingSince','followupDate',
@@ -109,4 +110,4 @@ function processAgentOperations(){const lock=LockService.getDocumentLock();lock.
 function ensureHeaders_(sh){const current=sh.getRange(1,1,1,Math.max(sh.getLastColumn(),1)).getValues()[0].map(String);HEADERS.forEach((h,idx)=>{if(current[idx]!==h)sh.getRange(1,idx+1).setValue(h)})}
 function headerMap_(sh){const headers=sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0].map(String),map={};headers.forEach((h,i)=>map[h]=i+1);return map}
 function getSheet_(){const sh=SpreadsheetApp.getActive().getSheetByName(SHEET_NAME);if(!sh)throw new Error('Projects sheet missing.');return sh}
-function json_(obj){return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON)}
+function json_(obj){if(obj&&typeof obj==="object"&&!Array.isArray(obj))obj.buildId=MC_BUILD_ID;return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON)}
