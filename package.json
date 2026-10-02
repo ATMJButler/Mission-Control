@@ -1,1 +1,12 @@
-{"name":"mission-control","private":true,"type":"module","scripts":{"test:auth":"node auth/authorization.test.js"}}
+{
+  "name": "mission-control",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:auth": "node auth/authorization.test.js"
+  },
+  "dependencies": {
+    "@clerk/backend": "^2.17.0",
+    "@clerk/clerk-js": "^6.35.0"
+  }
+}
