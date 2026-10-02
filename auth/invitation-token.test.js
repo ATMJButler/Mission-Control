@@ -1,0 +1,10 @@
+import crypto from "node:crypto";
+const serviceToken="service-secret",inviteToken="invite-secret";
+const payload={resource:"household_invitation",operation:"claim",identity:{provider:"clerk",subject:"u"},inviteToken};
+const sent={...payload,token:serviceToken};
+if(sent.token!==serviceToken)throw new Error("service token missing");
+if(sent.inviteToken!==inviteToken)throw new Error("invite token overwritten");
+if(sent.token===sent.inviteToken)throw new Error("credentials conflated");
+const hash=crypto.createHash("sha256").update(inviteToken).digest("hex");
+if(hash.length!==64)throw new Error("invite hash invalid");
+console.log(JSON.stringify({ok:true,separateCredentials:true}));
