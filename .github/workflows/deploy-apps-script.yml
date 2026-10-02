@@ -28,12 +28,9 @@ jobs:
       - name: Configure clasp
         env:
           CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
-          CLASP_JSON: ${{ secrets.CLASP_JSON }}
         run: |
           test -n "$CLASPRC_JSON"
-          test -n "$CLASP_JSON"
           printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
-          printf '%s' "$CLASP_JSON" > .clasp.json
 
       - name: Stage Apps Script source
         run: |
@@ -46,7 +43,6 @@ jobs:
             "runtimeVersion": "V8"
           }
           EOF
-          node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('.clasp.json','utf8'));x.rootDir='apps-script-dist';fs.writeFileSync('.clasp.json',JSON.stringify(x,null,2));"
 
       - name: Push source
         run: clasp push --force
