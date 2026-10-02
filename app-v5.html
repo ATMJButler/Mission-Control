@@ -283,7 +283,8 @@ const AREAS=["Supportworks","Construction","Above the Mark OS","Dropshipping","P
 const STATUSES=["Today","Active","Waiting / Blocked","Upcoming","Incubator / Someday","Completed"];
 const PRIORITIES=["Critical","High","Normal","Low"];
 const ATTENTION=["Needs John","Moving","Waiting","Parked","Complete"];
-const KEY="johnMissionControl.v3";
+const LEGACY_KEY="johnMissionControl.v3";
+function storageKey(){const uid=window.Clerk&&window.Clerk.user&&window.Clerk.user.id;return uid?"missionControl.v4."+uid:null}
 const STALE_DAYS=10;
 
 const seed=[
@@ -306,9 +307,9 @@ const seed=[
 
 const SYNC_KEY="missionControlV3Sync";
 const storage={
-  load(){try{const x=JSON.parse(localStorage.getItem(KEY));if(x&&Array.isArray(x.projects))return migrate(x)}catch(e){}
+  load(){try{const x=JSON.parse(localStorage.getItem(storageKey()||LEGACY_KEY));if(x&&Array.isArray(x.projects))return migrate(x)}catch(e){}
     return migrate({projects:seed,actions:[],inbox:[],activity:[{ts:"2026-08-14T19:30:00",type:"update",projectId:"assets",text:"Asset library surfaced as a current ATM OS constraint."},{ts:"2026-08-14T19:25:00",type:"update",projectId:"siro",text:"Siro remains a highest-leverage Supportworks project."}],completedActions:[]})},
-  save(s){localStorage.setItem(KEY,JSON.stringify(s));queueProjectPush()}
+  save(s){localStorage.setItem(storageKey()||LEGACY_KEY,JSON.stringify(s));queueProjectPush()}
 };
 let syncTimer=null,syncBusy=false;
 function defaultDeviceLabel(){return /iPhone|Android|Mobile/i.test(navigator.userAgent)?"Mission Control — Mobile":"Mission Control — Desktop"}
@@ -357,7 +358,7 @@ async function pushProjects(showToast=true){
     if(!x.ok)throw new Error(x.error||"Sync failed");
     if(Array.isArray(x.projects)){
       state.projects=x.projects.map(p=>migrate({projects:[p]}).projects[0]);
-      localStorage.setItem(KEY,JSON.stringify(state));
+      localStorage.setItem(storageKey()||LEGACY_KEY,JSON.stringify(state));
       renderAll()
     }
     setSyncStatus("Connected","Conflict-safe project sync active. Last push: "+new Date().toLocaleTimeString());
@@ -381,7 +382,7 @@ async function pullProjects(showToast=true){
     if(!r.ok)throw new Error("Private sync HTTP "+r.status);
     const x=await r.json();if(!x.ok||!Array.isArray(x.projects))throw new Error(x.error||"Sync failed");
     state.projects=x.projects.map(p=>migrate({projects:[p]}).projects[0]);
-    localStorage.setItem(KEY,JSON.stringify(state));renderAll();
+    localStorage.setItem(storageKey()||LEGACY_KEY,JSON.stringify(state));renderAll();
     setSyncStatus("Connected","Projects are shared. Last pull: "+new Date().toLocaleTimeString());
     if(showToast)toast("Shared projects refreshed");
     return true;
@@ -547,12 +548,12 @@ async function approveProjectReview(){
   p.projectActions=p.nextAction?[{id:"a-"+p.id+"-1",title:p.nextAction,status:"not_started",order:1,isNext:true}]:[];
   p.dependencies=deps.map((label,i)=>({id:"d-"+p.id+"-"+(i+1),type:"external",label,status:"open"}));
   p.reviewFeedback=p.reviewFeedback||[];p.reviewFeedback.push({reviewedAt:new Date().toISOString(),originalDraft:original,approved:{outcome:p.outcome,doneDefinition:p.doneDefinition,milestones:titles,dependencies:deps,nextAction:p.nextAction,priority:p.priority,deadline:p.deadline}});
-  p.lifecycle="active";p.reviewStatus="approved";p.status=p.status==="Completed"?"Active":(p.status||"Active");p.reviewDraft=null;stampProject(p,"Mission Control — Project Review");ensureAction(p);localStorage.setItem(KEY,JSON.stringify(state));closeModal("projectReviewModal");renderAll();setSyncStatus("Syncing…","Saving approved project build.");await pushProjects(true)
+  p.lifecycle="active";p.reviewStatus="approved";p.status=p.status==="Completed"?"Active":(p.status||"Active");p.reviewDraft=null;stampProject(p,"Mission Control — Project Review");ensureAction(p);localStorage.setItem(storageKey()||LEGACY_KEY,JSON.stringify(state));closeModal("projectReviewModal");renderAll();setSyncStatus("Syncing…","Saving approved project build.");await pushProjects(true)
 }
 async function rejectProjectReview(){
-  const p=state.projects.find(x=>x.id===prId.value);if(!p)return;p.lifecycle="deleted";p.deleted=true;p.deletedAt=new Date().toISOString();p.reviewStatus="rejected_not_project";p.reviewFeedback=p.reviewFeedback||[];p.reviewFeedback.push({reviewedAt:new Date().toISOString(),decision:"not_a_project"});stampProject(p,"Mission Control — Project Review");localStorage.setItem(KEY,JSON.stringify(state));closeModal("projectReviewModal");renderAll();await pushProjects(true)
+  const p=state.projects.find(x=>x.id===prId.value);if(!p)return;p.lifecycle="deleted";p.deleted=true;p.deletedAt=new Date().toISOString();p.reviewStatus="rejected_not_project";p.reviewFeedback=p.reviewFeedback||[];p.reviewFeedback.push({reviewedAt:new Date().toISOString(),decision:"not_a_project"});stampProject(p,"Mission Control — Project Review");localStorage.setItem(storageKey()||LEGACY_KEY,JSON.stringify(state));closeModal("projectReviewModal");renderAll();await pushProjects(true)
 }
-function mergeProjectReview(){const p=state.projects.find(x=>x.id===prId.value);if(!p)return;const candidates=state.projects.filter(x=>x.id!==p.id&&!x.deleted&&!x.archived&&x.lifecycle!=="draft");const names=candidates.slice(0,12).map((x,i)=>(i+1)+". "+x.name).join("\n");const answer=prompt("Merge this draft into which existing project? Enter the number:\n\n"+names);const ix=Number(answer)-1;if(!Number.isInteger(ix)||!candidates[ix])return;const target=candidates[ix];target.notes=(target.notes?target.notes+"\n\n":"")+"Merged draft "+p.name+": "+(prOutcome.value.trim()||p.outcome||p.description||"");stampProject(target,"Mission Control — Project Review");p.deleted=true;p.lifecycle="deleted";p.reviewStatus="merged";p.mergedIntoProjectId=target.id;stampProject(p,"Mission Control — Project Review");localStorage.setItem(KEY,JSON.stringify(state));closeModal("projectReviewModal");renderAll();pushProjects(true)}
+function mergeProjectReview(){const p=state.projects.find(x=>x.id===prId.value);if(!p)return;const candidates=state.projects.filter(x=>x.id!==p.id&&!x.deleted&&!x.archived&&x.lifecycle!=="draft");const names=candidates.slice(0,12).map((x,i)=>(i+1)+". "+x.name).join("\n");const answer=prompt("Merge this draft into which existing project? Enter the number:\n\n"+names);const ix=Number(answer)-1;if(!Number.isInteger(ix)||!candidates[ix])return;const target=candidates[ix];target.notes=(target.notes?target.notes+"\n\n":"")+"Merged draft "+p.name+": "+(prOutcome.value.trim()||p.outcome||p.description||"");stampProject(target,"Mission Control — Project Review");p.deleted=true;p.lifecycle="deleted";p.reviewStatus="merged";p.mergedIntoProjectId=target.id;stampProject(p,"Mission Control — Project Review");localStorage.setItem(storageKey()||LEGACY_KEY,JSON.stringify(state));closeModal("projectReviewModal");renderAll();pushProjects(true)}
 function renderProjects(){
   const ps=filteredProjects().sort((a,b)=>priorityScore(b)-priorityScore(a));projectCount.textContent=`${ps.length} shown`;
   projectBoard.innerHTML=ps.length?ps.map(p=>{const age=touchAge(p),ageClass=age>20?"bad":age>10?"warn":"";const dep=state.projects.find(x=>x.id===p.dependencyId);return `<article class="card" data-id="${p.id}"><div class="card-top"><div><h4>${esc(p.name)}</h4><div class="badges"><span class="badge">${esc(p.area)}</span><span class="badge ${attentionClass(p.attention)}">${esc(p.attention)}</span><span class="badge">${esc(p.status)}</span><span class="badge">${esc(p.priority)}</span>${stale(p)?`<span class="badge waiting">Stale ${touchAge(p)}d</span>`:""}</div></div><button class="btn ghost edit" data-id="${p.id}">Edit</button></div><div class="desc">${esc(p.description||"")}</div><div class="state"><b>Where we are:</b> ${esc(p.currentState||"—")}</div><div class="next"><b>Current next action</b>${esc(p.nextAction||"Define next action.")}</div><div class="meta"><div>Owner<b>${esc(p.owner||"—")}</b></div><div>Last touched<b class="age ${ageClass}">${age}d ago • ${esc(p.lastUpdatedBy||"Previous data")}</b></div><div>Waiting on<b>${esc(p.waitingOn||"Nothing")}</b></div><div>Dependency<b>${esc(dep?dep.name:"None")}</b></div></div><div class="progress"><div style="width:${Math.max(0,Math.min(100,Number(p.progress)||0))}%"></div></div></article>`}).join(""):`<div class="item"><b>No matching projects.</b></div>`;
@@ -627,19 +628,19 @@ function openMealRecipe(i){const x=state.meals.days[i];if(!x)return;x.recipe=x.r
 function saveMealRecipe(){const i=Number(mealRecipeIndex.value),x=state.meals.days[i];if(!x)return;x.recipe={servings:mealRecipeServings.value.trim(),time:mealRecipeTime.value.trim(),ingredients:mealRecipeIngredients.value.split("\n").map(v=>v.trim()).filter(Boolean),instructions:mealRecipeInstructions.value.trim(),notes:mealRecipeNotes.value.trim()};state.meals.status="draft";saveMeals(false);closeModal("mealRecipeModal");renderMeals();toast("Recipe saved")}
 function addRecipeIngredientsToGrocery(){const i=Number(mealRecipeIndex.value),x=state.meals.days[i];if(!x)return;const ingredients=mealRecipeIngredients.value.split("\n").map(v=>v.trim()).filter(Boolean),existing=new Set(state.meals.groceryList.map(g=>String(g.item||"").toLowerCase()));let added=0;ingredients.forEach(item=>{if(!existing.has(item.toLowerCase())){state.meals.groceryList.push({item,qty:"",done:false,sourceMeal:x.meal||"",addedAt:new Date().toISOString()});existing.add(item.toLowerCase());added++}});saveMeals(false);renderMeals();toast(added+" ingredient"+(added===1?"":"s")+" added to grocery list")}
 async function loadMeals(){
-  try{const r=await fetch("/api/meals?t="+Date.now(),{cache:"no-store"});const x=await r.json();if(x&&x.ok&&x.meals){mealsDurable=x.meals;state.meals=JSON.parse(JSON.stringify(x.meals.draft||x.meals.approved||x.meals));delete state.meals._durable;localStorage.setItem(KEY,JSON.stringify(state));renderMeals();return true}}catch(e){}return false
+  try{const r=await fetch("/api/meals?t="+Date.now(),{cache:"no-store"});const x=await r.json();if(x&&x.ok&&x.meals){mealsDurable=x.meals;state.meals=JSON.parse(JSON.stringify(x.meals.draft||x.meals.approved||x.meals));delete state.meals._durable;localStorage.setItem(storageKey()||LEGACY_KEY,JSON.stringify(state));renderMeals();return true}}catch(e){}return false
 }
 function durableMealsPayload(){
   ensureMealWeek();const existing=mealsDurable?JSON.parse(JSON.stringify(mealsDurable)):{};const clean=JSON.parse(JSON.stringify(state.meals,(k,v)=>k==="_durable"?undefined:v));const draft={weekStart:clean.weekStart||"",days:clean.days||[],groceryList:clean.groceryList||[],inventory:clean.inventory||[],settings:clean.settings||{},updatedAt:new Date().toISOString()};
   return {...existing,schemaVersion:1,householdId:"butler-household",draft,recipes:existing.recipes||[],groceryList:draft.groceryList,inventory:draft.inventory,rules:{...(existing.rules||{}),...(draft.settings||{})},mealHistory:existing.mealHistory||[],catalog:existing.catalog||{driveFileId:"1dl5niCGaXh4jPwPD9drZcYKoa9u2b6fH",name:"Butler Walmart Master Catalog.xlsx",itemCount:160,mealPlanEligibleCount:96}}
 }
 async function saveMeals(show=true){
-  ensureMealWeek();if(state.meals&&state.meals._durable)delete state.meals._durable;state.meals.updatedAt=new Date().toISOString();localStorage.setItem(KEY,JSON.stringify(state));const btn=document.getElementById("saveMealsBtn"),status=document.getElementById("mealSaveStatus");if(btn){btn.disabled=true;btn.textContent="Saving…"}if(status){status.textContent="Saving draft to Butler Household…";status.style.color="var(--muted)"}
+  ensureMealWeek();if(state.meals&&state.meals._durable)delete state.meals._durable;state.meals.updatedAt=new Date().toISOString();localStorage.setItem(storageKey()||LEGACY_KEY,JSON.stringify(state));const btn=document.getElementById("saveMealsBtn"),status=document.getElementById("mealSaveStatus");if(btn){btn.disabled=true;btn.textContent="Saving…"}if(status){status.textContent="Saving draft to Butler Household…";status.style.color="var(--muted)"}
   try{const r=await fetch("/api/meals",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({operation:"save_draft",actor:"Mission Control App",meals:durableMealsPayload()})});const x=await r.json();if(!r.ok||!x.ok)throw new Error(x.error||("Save failed ("+r.status+")"));mealsDurable=x.meals;const when=new Date().toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"});if(status){status.textContent="Draft saved ✓ "+when;status.style.color="var(--good)"}if(btn)btn.textContent="Saved ✓";if(show)toast("Meal-plan draft saved to Butler Household");setTimeout(()=>{if(btn)btn.textContent="Save Draft"},1800);return true}catch(e){if(status){status.textContent="Not saved to shared Meals — "+String(e.message||e);status.style.color="var(--bad)"}if(btn)btn.textContent="Save Draft";if(show)toast("Shared Meals save failed");return false}finally{if(btn)btn.disabled=false}
 }
 async function approveMeals(){
   const ok=await saveMeals(false);if(!ok){toast("Cannot approve until the shared draft saves");return}
-  try{const r=await fetch("/api/meals",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({operation:"approve",actor:"Mission Control App",meals:durableMealsPayload()})});const x=await r.json();if(!x.ok)throw new Error(x.error||"Approval failed");mealsDurable=x.meals;state.meals.status="approved";localStorage.setItem(KEY,JSON.stringify(state));renderMeals();const status=document.getElementById("mealSaveStatus");if(status){status.textContent="Week approved ✓ "+new Date().toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"});status.style.color="var(--good)"}toast("Week approved for Butler Household")}catch(e){toast("Week was not approved — "+String(e.message||e))}
+  try{const r=await fetch("/api/meals",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({operation:"approve",actor:"Mission Control App",meals:durableMealsPayload()})});const x=await r.json();if(!x.ok)throw new Error(x.error||"Approval failed");mealsDurable=x.meals;state.meals.status="approved";localStorage.setItem(storageKey()||LEGACY_KEY,JSON.stringify(state));renderMeals();const status=document.getElementById("mealSaveStatus");if(status){status.textContent="Week approved ✓ "+new Date().toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"});status.style.color="var(--good)"}toast("Week approved for Butler Household")}catch(e){toast("Week was not approved — "+String(e.message||e))}
 }
 async function planNextWeek(){
   ensureMealWeek();const btn=document.getElementById("planMealsBtn"),status=document.getElementById("mealSaveStatus");if(btn){btn.disabled=true;btn.textContent="Building…"}if(status){status.textContent="Building a real Butler Household draft…";status.style.color="var(--muted)"}
@@ -647,7 +648,7 @@ async function planNextWeek(){
     const start=mealWeekStart(new Date(Date.now()+7*86400000)),weekStart=mealDateKey(start),source=mealsDurable||durableMealsPayload();
     const r=await fetch("/api/meals/plan",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({householdId:"butler-household",weekStart,meals:source,constraints:window.MC_MEAL_CONSTRAINTS||[]})});
     const x=await r.json();if(!r.ok||!x.ok||!x.draft)throw new Error(x.error||"Meal planner is not connected yet");
-    state.meals=JSON.parse(JSON.stringify(x.draft));state.meals.status="draft";localStorage.setItem(KEY,JSON.stringify(state));renderMeals();if(status){status.textContent="Next week draft built ✓ Review before approval";status.style.color="var(--good)"}toast("Next week meal draft ready")
+    state.meals=JSON.parse(JSON.stringify(x.draft));state.meals.status="draft";localStorage.setItem(storageKey()||LEGACY_KEY,JSON.stringify(state));renderMeals();if(status){status.textContent="Next week draft built ✓ Review before approval";status.style.color="var(--good)"}toast("Next week meal draft ready")
   }catch(e){if(status){status.textContent="Planner not ready — "+String(e.message||e);status.style.color="var(--warn)"}toast("Meal planner needs its planning service")}
   finally{if(btn){btn.disabled=false;btn.textContent="Plan Next Week"}}
 }
@@ -665,13 +666,13 @@ async function saveProjectData(){
   let p=state.projects.find(x=>x.id===pId.value),isNew=!p;if(!p){p={id:"p"+Date.now()};state.projects.push(p)}
   Object.assign(p,{name:pName.value.trim()||"Untitled Project",area:pArea.value,status:pStatus.value,priority:pPriority.value,attention:pAttention.value,owner:pOwner.value.trim()||"John",description:pDesc.value.trim(),outcome:pOutcome.value.trim(),doneDefinition:pDoneDef.value.trim(),currentState:pCurrent.value.trim(),nextAction:pNext.value.trim(),waitingOn:pWaiting.value.trim(),waitingSince:pWaitingSince.value,followupDate:pFollow.value,deadline:pDeadline.value,milestone:pMilestone.value.trim(),milestoneDate:pMilestoneDate.value,progress:Number(pProgress.value)||0,dependencyId:pDependency.value,tags:pTags.value.split(",").map(x=>x.trim()).filter(Boolean),notes:pNotes.value.trim()});stampProject(p);
   ensureAction(p);log(isNew?"project_create":"project_edit",p.id,isNew?"Project created.":"Project edited.");
-  localStorage.setItem(KEY,JSON.stringify(state));
+  localStorage.setItem(storageKey()||LEGACY_KEY,JSON.stringify(state));
   closeModal("projectModal");
   renderAll();
   setSyncStatus("Syncing…","Project saved locally. Sending this change to shared data now.");
   await pushProjects(true)
 }
-async function deleteProjectData(){const id=pId.value;if(!id)return;const p=state.projects.find(x=>x.id===id);if(!p)return;if(confirm("Remove this project from active Mission Control? It will be retained for recovery/history.")){p.deleted=true;p.deletedAt=new Date().toISOString();p.deletedBy=sourceLabel();p.status="Completed";p.attention="Complete";stampProject(p);state.actions=state.actions.filter(a=>a.projectId!==id);state.projects.forEach(x=>{if(x.dependencyId===id)x.dependencyId=""});localStorage.setItem(KEY,JSON.stringify(state));closeModal("projectModal");renderAll();setSyncStatus("Syncing…","Saving durable project removal.");const ok=await pushProjects(false);toast(ok?"Project removed":"Project removed locally; sync will retry")}}
+async function deleteProjectData(){const id=pId.value;if(!id)return;const p=state.projects.find(x=>x.id===id);if(!p)return;if(confirm("Remove this project from active Mission Control? It will be retained for recovery/history.")){p.deleted=true;p.deletedAt=new Date().toISOString();p.deletedBy=sourceLabel();p.status="Completed";p.attention="Complete";stampProject(p);state.actions=state.actions.filter(a=>a.projectId!==id);state.projects.forEach(x=>{if(x.dependencyId===id)x.dependencyId=""});localStorage.setItem(storageKey()||LEGACY_KEY,JSON.stringify(state));closeModal("projectModal");renderAll();setSyncStatus("Syncing…","Saving durable project removal.");const ok=await pushProjects(false);toast(ok?"Project removed":"Project removed locally; sync will retry")}}
 function openUpdate(id=""){uProject.innerHTML=state.projects.filter(p=>p.status!=="Completed").sort((a,b)=>a.name.localeCompare(b.name)).map(p=>`<option value="${p.id}">${esc(p.name)} — ${esc(p.area)}</option>`).join("");if(id)uProject.value=id;loadUpdate();openModal("updateModal")}
 function loadUpdate(){const p=state.projects.find(x=>x.id===uProject.value);if(!p)return;uText.value="";uStatus.value=p.status;uAttention.value=p.attention;uCurrent.value=p.currentState||"";uNext.value=p.nextAction||"";uWaiting.value=p.waitingOn||"";uFollow.value=p.followupDate||"";uProgress.value=p.progress||0}
 function interpret(){
@@ -684,7 +685,7 @@ function interpret(){
 async function saveUpdateData(){
   const p=state.projects.find(x=>x.id===uProject.value);if(!p)return;const priorWait=p.waitingOn;
   p.status=uStatus.value;p.attention=uAttention.value;p.currentState=uCurrent.value.trim();p.nextAction=uNext.value.trim();p.waitingOn=uWaiting.value.trim();p.followupDate=uFollow.value;p.progress=Number(uProgress.value)||0;stampProject(p);if(p.waitingOn&&!priorWait&&!p.waitingSince)p.waitingSince=today();if(!p.waitingOn)p.waitingSince="";ensureAction(p);log("update",p.id,uText.value.trim()||"Project updated.");
-  localStorage.setItem(KEY,JSON.stringify(state));
+  localStorage.setItem(storageKey()||LEGACY_KEY,JSON.stringify(state));
   closeModal("updateModal");
   renderAll();
   setSyncStatus("Syncing…","Project update saved locally. Sending this change to shared data now.");
