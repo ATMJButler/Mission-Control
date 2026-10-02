@@ -1,10 +1,9 @@
 // Identity/Auth directory deployment checkpoint 2026-10-02
 /**
  * Mission Control V5 — conflict-safe Google Sheets shared project source
- * IMPORTANT: Keep your existing SYNC_TOKEN value when you paste this into Apps Script.
+ * Authentication secrets are stored only in Apps Script Script Properties; never in source.
  */
 const SHEET_NAME = 'Projects';
-const SYNC_TOKEN = 'CHANGE-ME-TO-A-LONG-PRIVATE-TOKEN';
 const HEADERS = [
 'id','name','area','status','priority','attention','owner','description','outcome',
 'doneDefinition','currentState','nextAction','waitingOn','waitingSince','followupDate',
@@ -36,7 +35,7 @@ function onEdit(e){try{
   }
 }catch(err){console.error(err)}}
 
-function authorize_(token){if(!SYNC_TOKEN||SYNC_TOKEN==='CHANGE-ME-TO-A-LONG-PRIVATE-TOKEN')throw new Error('Set SYNC_TOKEN first.');if(token!==SYNC_TOKEN)throw new Error('Unauthorized')}
+function authorize_(token){const expected=PropertiesService.getScriptProperties().getProperty("SYNC_TOKEN");if(!expected)throw new Error("Set SYNC_TOKEN Script Property first.");const supplied=String(token||"");if(supplied.length!==expected.length)throw new Error("Unauthorized");let diff=0;for(let i=0;i<expected.length;i++)diff|=expected.charCodeAt(i)^supplied.charCodeAt(i);if(diff!==0)throw new Error("Unauthorized")}
 
 function readProjects_(){return readProjectsFromSheet_(getSheet_())}
 function readProjectsFromSheet_(sh){ensureHeaders_(sh);const range=sh.getDataRange(),values=range.getValues(),display=range.getDisplayValues();if(values.length<2)return[];
