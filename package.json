@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:auth": "node auth/authorization.test.js && node auth/directory-model.test.js"
+    "test:auth": "node auth/authorization.test.js && node auth/directory-model.test.js && node auth/legacy-sync-envelope.test.js"
   },
   "dependencies": {
     "@clerk/backend": "^2.17.0",
