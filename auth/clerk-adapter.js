@@ -21,8 +21,9 @@ export function installClerkIdentityAdapter(){
   globalThis.__MC_IDENTITY_ADAPTER__={
     async verifyRequest(req){
       const parties=(process.env.MC_AUTHORIZED_PARTIES||"").split(",").map(x=>x.trim()).filter(Boolean);
+      if(!parties.length){const e=new Error("Authorized parties are not configured.");e.code="AUTHORIZED_PARTIES_NOT_CONFIGURED";e.statusCode=503;throw e}
       const request=absoluteRequest(req);
-      const state=await client.authenticateRequest(request,{authorizedParties:parties.length?parties:undefined});
+      const state=await client.authenticateRequest(request,{authorizedParties:parties});
       if(!state.isAuthenticated)return null;
       const auth=state.toAuth();
       if(!auth.userId)return null;
