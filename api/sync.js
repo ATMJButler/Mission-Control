@@ -13,6 +13,11 @@ export default async function handler(req,res){
   if(!upstream||!token)return res.status(503).json({ok:false,error:"Mission Control private sync is not configured."});
   try{
     if(req.method==="GET"){
+      installClerkIdentityAdapter();installUpstreamDirectoryAdapter();
+      const identity=await requireVerifiedIdentity(req);
+      const ctx=await resolveAccessContext(identity,"butler-household");
+      const auth=authorize({user:ctx.user,household:ctx.household,membership:ctx.membership,resource:"projects",operation:"read"});
+      if(!auth.ok)return res.status(403).json({ok:false,error:"Forbidden",reason:auth.reason});
       const sep=upstream.includes("?")?"&":"?";
       const r=await fetch(upstream+sep+"token="+encodeURIComponent(token),{cache:"no-store"});
       const body=await r.text();
