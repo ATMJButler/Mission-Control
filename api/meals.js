@@ -31,5 +31,5 @@ export default async function handler(req,res){
       return res.status(r.status).setHeader("Content-Type","application/json; charset=utf-8").send(await r.text());
     }
     res.setHeader("Allow","GET, POST");return res.status(405).json({ok:false,error:"Method not allowed"});
-  }catch(e){return res.status(502).json({ok:false,error:String(e&&e.message||e)})}
+  }catch(e){const status=Number(e&&e.statusCode)||502;return res.status(status).json({ok:false,error:String(e&&e.message||e),code:e&&e.code||"UPSTREAM_ERROR"})}
 }
