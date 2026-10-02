@@ -61,9 +61,7 @@ jobs:
           test -n "$VERSION"
           echo "number=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Update production deployment
-        env:
-          APPS_SCRIPT_DEPLOYMENT_ID: ${{ secrets.APPS_SCRIPT_DEPLOYMENT_ID }}
+      - name: Preserve Web App deployment
         run: |
-          test -n "$APPS_SCRIPT_DEPLOYMENT_ID"
-          clasp create-deployment --deploymentId "$APPS_SCRIPT_DEPLOYMENT_ID" --versionNumber "${{ steps.version.outputs.number }}" --description "GitHub ${GITHUB_SHA}"
+          echo "Source pushed and immutable version ${{ steps.version.outputs.number }} created."
+          echo "Production Web App deployment is intentionally NOT mutated by clasp until a WebAppConfig-preserving deployer is commissioned."
