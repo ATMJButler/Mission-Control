@@ -2,7 +2,7 @@
 
 The canonical Apps Script source is `google_apps_script_Code.gs`.
 
-Production deployment is handled by the GitHub Actions workflow **Deploy Apps Script**. It is intentionally manual-dispatch: merging code does not automatically deploy production.
+Production deployment is handled by the GitHub Actions workflow **Deploy Apps Script**. Qualifying pushes to `main` that change `google_apps_script_Code.gs` or the deployment workflow automatically deploy production. `workflow_dispatch` remains available for controlled reruns/manual releases.
 
 Required GitHub Actions secrets:
 
@@ -16,7 +16,7 @@ Release flow:
 
 1. Update/test `google_apps_script_Code.gs`.
 2. Commit to GitHub.
-3. Run **Deploy Apps Script** from GitHub Actions.
+3. A qualifying push to `main` starts **Deploy Apps Script** automatically; use manual dispatch only when an explicit rerun/release is needed.
 4. Workflow pushes the source, creates an immutable Apps Script version, and updates the existing production deployment.
 5. Verify Mission Control behavior/readback after deployment.
 
