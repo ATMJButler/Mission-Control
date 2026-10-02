@@ -29,3 +29,14 @@ Runtime secrets:
 - Apps Script authorization reads `SYNC_TOKEN` from `PropertiesService`; no sync token belongs in source code.
 - Vercel `MC_SYNC_URL` must be the production Apps Script **Web app** `/exec` URL, not a Library URL.
 - `APPS_SCRIPT_DEPLOYMENT_ID` must identify that same Web app deployment.
+
+
+## Web App deployment safety
+
+As of 2026-10-02, the production Apps Script Web App entry point must not be updated with `clasp create-deployment --deploymentId`. Commissioning showed that the manually configured Web App returned JSON correctly, then became non-Web-App/non-JSON after the clasp deployment update. Current clasp does not reliably preserve WebAppConfig/entryPoints when deploying.
+
+Until a Google Apps Script API deployer that explicitly supplies WEB_APP entryPoints, access=ANYONE_ANONYMOUS, and executeAs=USER_DEPLOYING is commissioned:
+- GitHub Actions pushes source and creates an immutable version only.
+- Do not use clasp to mutate the production Web App deployment.
+- Production Web App version promotion is a manual Apps Script UI step.
+- Verify the /exec endpoint returns application/json after every promotion.
