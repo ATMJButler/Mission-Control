@@ -1,3 +1,4 @@
+// Identity/Auth directory deployment checkpoint 2026-10-02
 /**
  * Mission Control V5 — conflict-safe Google Sheets shared project source
  * IMPORTANT: Keep your existing SYNC_TOKEN value when you paste this into Apps Script.
