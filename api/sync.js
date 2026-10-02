@@ -1,3 +1,4 @@
+import {requireMissionControlOrigin} from "../auth/origin.js";
 import {installClerkIdentityAdapter} from "../auth/clerk-adapter.js";
 import {requireVerifiedIdentity} from "../auth/session.js";
 import {installUpstreamDirectoryAdapter} from "../auth/upstream-directory.js";
@@ -25,6 +26,7 @@ export default async function handler(req,res){
       return;
     }
     if(req.method==="POST"){
+      requireMissionControlOrigin(req);
       installClerkIdentityAdapter();installUpstreamDirectoryAdapter();
       const identity=await requireVerifiedIdentity(req);
       const ctx=await resolveAccessContext(identity,"butler-household");
