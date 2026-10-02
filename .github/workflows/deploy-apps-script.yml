@@ -2,6 +2,11 @@ name: Deploy Apps Script
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "google_apps_script_Code.gs"
+      - ".github/workflows/deploy-apps-script.yml"
 
 permissions:
   contents: read
