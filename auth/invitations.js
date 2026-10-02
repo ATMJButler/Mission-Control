@@ -10,7 +10,7 @@ async function upstreamCall(payload){
   if(!upstream||!token)throw Object.assign(new Error("Private upstream unavailable"),{statusCode:503});
   const r=await fetch(upstream,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({...payload,token}),cache:"no-store"});
   const text=await r.text();let body;try{body=JSON.parse(text)}catch(_e){throw Object.assign(new Error("Invitation upstream returned non-JSON"),{statusCode:502})}
-  if(!body.ok)throw Object.assign(new Error(body.error||body.reason||"Invitation denied"),{statusCode:403,code:body.error||body.reason});
+  if(!body.ok){const code=body.error||body.reason||"INVITATION_DENIED";const status=["INVITATION_NOT_FOUND"].includes(code)?404:["INVITATION_EXPIRED","INVITATION_NOT_PENDING","INVITATION_CLAIM_IN_PROGRESS","MEMBERSHIP_ALREADY_EXISTS"].includes(code)?409:["ROLE_NOT_INVITABLE","INVALID_INVITATION_REQUEST"].includes(code)?400:403;throw Object.assign(new Error(code),{statusCode:status,code})}
   return body;
 }
 export async function createInvitation(req,{householdId,role}){
