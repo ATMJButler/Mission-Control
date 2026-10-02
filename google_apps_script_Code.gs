@@ -19,7 +19,6 @@ function doPost(e){try{
   const body=JSON.parse((e&&e.postData&&e.postData.contents)||'{}');
   authorize_(body.token);
   if(body.resource==="meals"){const meals=writeMeals_(body.meals,body.operation||"save_draft",body.actor||"Mission Control",body.expectedVersion);return json_({ok:true,meals:meals,updatedAt:new Date().toISOString()})}
-  if(body.resource==="project_operation")return json_(trustedProjectOperation_(body));
   if(!Array.isArray(body.projects))throw new Error('projects array required');
   const merged=mergeProjects_(readProjects_(),body.projects);writeProjects_(merged);
   return json_({ok:true,count:merged.length,projects:merged,updatedAt:new Date().toISOString()});
