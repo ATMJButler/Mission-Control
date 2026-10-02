@@ -19,11 +19,10 @@ function doPost(e){try{
   const body=JSON.parse((e&&e.postData&&e.postData.contents)||'{}');
   authorize_(body.token);
   if(body.resource==="household_invitation"){if(body.operation==="create")return json_(createHouseholdInvitation_(String(body.actorUserId||""),String(body.householdId||""),String(body.role||""),String(body.tokenHash||""),String(body.expiresAt||"")));if(body.operation==="claim")return json_(claimHouseholdInvitation_(body.identity||{},String(body.token||"")));if(body.operation==="revoke")return json_(revokeHouseholdInvitation_(String(body.actorUserId||""),String(body.invitationId||"")));throw new Error("Unsupported household invitation operation")}
+  if(body.resource==="projects"){if(body.operation!=="legacy_merge")throw new Error("Unsupported project operation");if(body.householdId!=="butler-household")throw new Error("Household not permitted");if(!Array.isArray(body.projects))throw new Error("projects array required");const merged=mergeProjects_(readProjects_(),body.projects);writeProjects_(merged);return json_({ok:true,count:merged.length,projects:merged,updatedAt:new Date().toISOString()})}
   if(body.resource==="identity_directory"){if(body.operation==="resolve")return json_(resolveIdentityDirectory_(String(body.provider||""),String(body.subject||""),String(body.householdId||"")));if(body.operation==="bootstrap_first_principal")return json_(bootstrapFirstPrincipal_(body.identity||{}));throw new Error("Unsupported identity directory operation")}
   if(body.resource==="meals"){const meals=writeMeals_(body.meals,body.operation||"save_draft",body.actor||"Mission Control",body.expectedVersion);return json_({ok:true,meals:meals,updatedAt:new Date().toISOString()})}
-  if(!Array.isArray(body.projects))throw new Error('projects array required');
-  const merged=mergeProjects_(readProjects_(),body.projects);writeProjects_(merged);
-  return json_({ok:true,count:merged.length,projects:merged,updatedAt:new Date().toISOString()});
+  throw new Error("Explicit resource required");
 }catch(err){return json_({ok:false,error:String(err.message||err)})}}
 
 function onEdit(e){try{
