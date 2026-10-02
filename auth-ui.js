@@ -22,6 +22,7 @@ async function bootMissionControlAuth(){
         mount.innerHTML="";
         state.textContent="Identity verified.";
         const gate=document.getElementById("mcAuthGate");if(gate)gate.style.display="none";
+        if(!document.getElementById("mcSignOut")){const b=document.createElement("button");b.id="mcSignOut";b.type="button";b.textContent="Sign out";b.style.cssText="position:fixed;right:14px;bottom:14px;z-index:9999;padding:8px 12px;border-radius:10px;border:1px solid #315174;background:#0d1a2c;color:#edf4fa;cursor:pointer";b.onclick=async()=>{b.disabled=true;await window.Clerk.signOut();location.reload()};document.body.appendChild(b)}
         return;
       }
       mount.innerHTML="";
