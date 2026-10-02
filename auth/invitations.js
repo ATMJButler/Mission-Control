@@ -25,5 +25,5 @@ export async function createInvitation(req,{householdId,role}){
 }
 export async function claimInvitation(req,rawToken){
   installClerkIdentityAdapter();const identity=await requireVerifiedIdentity(req);
-  return upstreamCall({resource:"household_invitation",operation:"claim",identity,token:rawToken});
+  return upstreamCall({resource:"household_invitation",operation:"claim",identity,inviteToken:rawToken});
 }
