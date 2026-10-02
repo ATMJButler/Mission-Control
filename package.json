@@ -1,0 +1,1 @@
+{"name":"mission-control","private":true,"type":"module","scripts":{"test:auth":"node auth/authorization.test.js"}}
