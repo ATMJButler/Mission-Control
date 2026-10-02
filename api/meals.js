@@ -23,7 +23,7 @@ export default async function handler(req,res){
       const identity=await requireVerifiedIdentity(req),ctx=await resolveAccessContext(identity,"butler-household");
       const body=typeof req.body==="string"?JSON.parse(req.body||"{}"):(req.body||{});
       const operation=String(body.operation||"save_draft");
-      if(!["save_draft","approve_week"].includes(operation))return res.status(400).json({ok:false,error:"Unsupported meal operation"});
+      if(!["save_draft","approve"].includes(operation))return res.status(400).json({ok:false,error:"Unsupported meal operation"});
       const auth=authorize({user:ctx.user,household:ctx.household,membership:ctx.membership,resource:"meals",operation});
       if(!auth.ok)return res.status(403).json({ok:false,error:"Forbidden",reason:auth.reason});
       const payload={token,resource:"meals",operation,actor:ctx.user.userId,householdId:ctx.household.householdId,meals:body.meals||{}};
