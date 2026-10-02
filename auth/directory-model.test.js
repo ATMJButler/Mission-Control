@@ -1,0 +1,10 @@
+import {validateDirectoryRows} from "./directory-model.js";
+const identity={provider:"clerk",subject:"sub-john"};
+const users=[{userId:"u1",status:"active",identityProvider:"clerk",providerSubject:"sub-john"}];
+const households=[{householdId:"h1",status:"active"}];
+const memberships=[{membershipId:"m1",userId:"u1",householdId:"h1",role:"principal",status:"active"}];
+const ok=validateDirectoryRows({identity,users,households,memberships,requestedHouseholdId:"h1"});if(!ok.ok)throw new Error("valid chain denied");
+const noUser=validateDirectoryRows({identity:{provider:"clerk",subject:"other"},users,households,memberships,requestedHouseholdId:"h1"});if(noUser.ok||noUser.reason!=="USER_NOT_PROVISIONED")throw new Error("unprovisioned identity not denied");
+const wrong=validateDirectoryRows({identity,users,households,memberships,requestedHouseholdId:"h2"});if(wrong.ok)throw new Error("wrong household allowed");
+const revoked=validateDirectoryRows({identity,users,households,memberships:[{...memberships[0],status:"revoked"}],requestedHouseholdId:"h1"});if(revoked.ok)throw new Error("revoked membership allowed");
+console.log(JSON.stringify({ok:true,cases:4}));
