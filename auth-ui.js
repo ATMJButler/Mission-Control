@@ -20,7 +20,8 @@ async function bootMissionControlAuth(){
     const render=()=>{
       if(window.Clerk.isSignedIn){
         mount.innerHTML="";
-        state.textContent="Identity verified. Household authorization is not commissioned yet.";
+        state.textContent="Identity verified.";
+        const gate=document.getElementById("mcAuthGate");if(gate)gate.style.display="none";
         return;
       }
       mount.innerHTML="";
