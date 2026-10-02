@@ -25,6 +25,9 @@ async function bootMissionControlAuth(){
         if(!document.getElementById("mcSignOut")){const b=document.createElement("button");b.id="mcSignOut";b.type="button";b.textContent="Sign out";b.style.cssText="position:fixed;right:14px;bottom:14px;z-index:9999;padding:8px 12px;border-radius:10px;border:1px solid #315174;background:#0d1a2c;color:#edf4fa;cursor:pointer";b.onclick=async()=>{b.disabled=true;try{const uid=window.Clerk&&window.Clerk.user&&window.Clerk.user.id;if(uid)localStorage.removeItem("missionControl.v4."+uid);localStorage.removeItem("johnMissionControl.v3");localStorage.removeItem("missionControlV3Sync");if("caches"in window){for(const name of await caches.keys())await caches.delete(name)}}finally{await window.Clerk.signOut();location.reload()}};document.body.appendChild(b)}
         return;
       }
+      const gate=document.getElementById("mcAuthGate");if(gate)gate.style.display="flex";
+      const core=document.getElementById("core");if(core)core.src="about:blank";
+      const signOut=document.getElementById("mcSignOut");if(signOut)signOut.remove();
       mount.innerHTML="";
       window.Clerk.mountSignIn(mount,{});
       state.textContent="Authentication is required.";
