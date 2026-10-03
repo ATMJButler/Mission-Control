@@ -10,6 +10,7 @@ on:
       - "api/meals.js"
       - "package.json"
       - "google_apps_script_Code.gs"
+      - "app-v5.html"
       - ".github/workflows/test-auth.yml"
   pull_request:
     paths:
@@ -19,6 +20,7 @@ on:
       - "api/meals.js"
       - "package.json"
       - "google_apps_script_Code.gs"
+      - "app-v5.html"
       - ".github/workflows/test-auth.yml"
 
 permissions:

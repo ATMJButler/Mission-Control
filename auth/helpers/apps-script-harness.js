@@ -88,6 +88,7 @@ export function createAppsScriptHarness() {
   return {
     events, errors, properties, sheet,
     setFault: callback => { fault = callback; },
+    flush: () => context.SpreadsheetApp.flush(),
     get held() { return held; },
     rows: (name, durable = false) => copy(sheets.get(name)?.state[durable ? "durable" : "rows"] ?? []),
     call(name, ...args) {
