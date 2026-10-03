@@ -6,7 +6,7 @@ const PROJECT_OPERATIONS=Object.freeze({
   restore_project:{role:"principal",required:["resourceId","expectedVersion"],patchAllowed:false},
   soft_delete_project:{role:"principal",required:["resourceId","expectedVersion"],patchAllowed:false}
 });
-const PATCH_KEYS=new Set(["name","area","scope","operatingState","priority","attention","owner","description","outcome","doneDefinition","currentState","nextAction","waitingOn","waitingSince","followupDate","deadline","milestone","milestoneDate","progress","tags","notes","dependencyId","financeData","agendaData"]);
+const PATCH_KEYS=new Set(["name","area","scope","operatingState","priority","attention","owner","description","outcome","doneDefinition","currentState","nextAction","waitingOn","waitingSince","followupDate","deadline","milestone","milestoneDate","progress","tags","notes","dependencyId"]);
 export function validateProjectDispatch({operation,resourceId,expectedVersion,patch}){
   const spec=PROJECT_OPERATIONS[operation];if(!spec)return{ok:false,status:400,reason:"UNKNOWN_PROJECT_OPERATION"};
   if(!resourceId||typeof resourceId!=="string")return{ok:false,status:400,reason:"RESOURCE_ID_REQUIRED"};
