@@ -13,4 +13,9 @@ must(/targetLifecycle==="deleted"\)[\s\S]*?raw\.completed=false;raw\.deleted=tru
 must(/targetLifecycle==="completed"\)[\s\S]*?raw\.completed=true;raw\.archived=false;raw\.deleted=false/,"completed lifecycle metadata incoherent");
 must(/projectOperationFingerprintMatches_\(prior,body\)/,"operationId fingerprint dedupe missing");
 must(/status==="SUCCESS"\)return json_\(Object\.assign\(\{\},saved,\{replayed:true\}\)\)/,"successful operation replay behavior missing");
+must(/SpreadsheetApp\.flush\(\);lock\.releaseLock\(\)/,"shared Project lock releases without flushing pending spreadsheet writes");
+must(/Project mutation committed but success audit persistence failed/,"post-commit audit failure is not represented as unknown outcome");
+must(/definitive=\/\^\(INVALID\|CONFLICT\|FORBIDDEN\):\//,"definitive pre-commit failure classification missing");
+must(/patch date .*YYYY-MM-DD or blank/,"Apps Script date validation missing");
+if(/\^\\\\d\{4\}-\\\\d\{2\}-\\\\d\{2\}\$/.test(s))throw new Error("Apps Script Project date regex is double escaped");
 console.log(JSON.stringify({ok:true,projectAppsScriptContracts:true}));
