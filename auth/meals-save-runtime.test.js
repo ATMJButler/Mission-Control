@@ -40,8 +40,6 @@ function setup(t, {loadedVersion = 7, currentVersion = 7, role = "principal"} = 
       assert.equal(url, "https://offline.invalid/exec");
       const body = JSON.parse(options.body); upstreamRequests.push(body);
       const result = backend.post(body);
-      // Model end-of-request persistence; real Google buffering is not simulated.
-      backend.flush();
       return new Response(JSON.stringify(result));
     }
   });
@@ -89,7 +87,8 @@ test("stale Save Draft preserves newer shared state and keeps local edits withou
   assert.equal(flow.browserRequests.length, 1); assert.equal(flow.upstreamRequests.length, 1);
   assert.equal(flow.browser.mealsDurable.version, 7);
   assert.equal(JSON.parse(flow.storage.get("offline-user-meals")).meals.days[0].meal, "My local edit");
-  assert.match(flow.status.textContent, /Not saved.*CONFLICT:/);
+  assert.match(flow.status.textContent, /Shared Meals changed/);
+  assert.match(flow.status.textContent, /Your edits are kept on this device/);
   assert.equal(flow.button.disabled, false);
 });
 
@@ -122,4 +121,28 @@ test("extended role cannot send a Meals draft mutation upstream", async t => {
   const flow = setup(t, {role: "extended"}); const before = flow.backend.rows("Meals");
   assert.equal(await flow.browser.saveMeals(), false); assert.equal(flow.upstreamRequests.length, 0);
   assert.deepEqual(flow.backend.rows("Meals"), before);
+});
+
+test("uncertain draft persistence tells the user to check shared Meals and does not retry", async t => {
+  const flow = setup(t);
+  flow.backend.setFault(e => { if (e.type === "flush" && e.number === 1) throw new Error("injected save flush loss"); });
+  assert.equal(await flow.browser.saveMeals(), false);
+  const readback = JSON.parse(flow.backend.rows("Meals", true)[1][6]);
+  assert.equal(readback.version, 8); assert.equal(flow.browser.mealsDurable.version, 7);
+  assert.match(flow.status.textContent, /shared save could not be confirmed/);
+  assert.match(flow.status.textContent, /Check shared Meals before trying again/);
+  assert.equal(flow.browserRequests.length, 1); assert.equal(flow.upstreamRequests.length, 1);
+  assert.equal(flow.button.disabled, false);
+});
+
+test("uncertain approval reports an unconfirmed outcome even when readback shows a committed approval", async t => {
+  const flow = setup(t);
+  flow.backend.setFault(e => { if (e.type === "flush" && e.number === 3) throw new Error("injected approval flush loss"); });
+  await flow.browser.approveMeals();
+  const readback = JSON.parse(flow.backend.rows("Meals", true)[1][6]);
+  assert.equal(readback.version, 9); assert.equal(readback.status, "approved");
+  assert.equal(flow.browser.mealsDurable.version, 8); assert.equal(flow.browser.state.meals.status, "draft");
+  assert.match(flow.status.textContent, /shared approval could not be confirmed/);
+  assert.match(flow.messages.at(-1), /Check shared Meals before trying again/);
+  assert.equal(flow.browserRequests.length, 2); assert.equal(flow.upstreamRequests.length, 2);
 });

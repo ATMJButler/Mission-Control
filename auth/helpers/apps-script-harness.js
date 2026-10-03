@@ -41,6 +41,7 @@ export function createAppsScriptHarness() {
               state.rows[row + y - 1] ??= [];
               for (let x = 0; x < width; x++) state.rows[row + y - 1][col + x - 1] = copy(values[y][x]);
             }
+            event("written", {sheet: name, row, col, height, width});
             return this;
           },
           setValue(value) { return this.setValues([[value]]); },
@@ -62,7 +63,7 @@ export function createAppsScriptHarness() {
     insertSheet(name) { assert.ok(!sheets.has(name)); event("insert", {sheet: name}); return sheet(name); }
   };
   const lock = {
-    waitLock(timeout) { assert.equal(timeout, 30000); assert.equal(held, false); held = true; event("acquire"); },
+    waitLock(timeout) { assert.equal(timeout, 30000); assert.equal(held, false); event("wait", {timeout}); held = true; event("acquire"); },
     releaseLock() { assert.equal(held, true); event("release"); held = false; }
   };
   const context = vm.createContext({

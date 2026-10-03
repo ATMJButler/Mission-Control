@@ -5,7 +5,7 @@
   "scripts": {
     "test:auth": "node auth/authorization.test.js && node auth/directory-model.test.js && node auth/legacy-sync-envelope.test.js && node auth/invitation-token.test.js && node auth/meals-approval.test.js && node auth/project-dispatch.test.js && node auth/project-dispatch-upstream.test.js && node auth/project-apps-script-contract.test.js && npm run test:project-runtime && npm run test:meals-runtime",
     "test:project-runtime": "node --test auth/project-apps-script-runtime.test.js",
-    "test:meals-runtime": "node --test auth/meals-save-runtime.test.js"
+    "test:meals-runtime": "node --test auth/meals-save-runtime.test.js auth/meals-lock-runtime.test.js"
   },
   "dependencies": {
     "@clerk/backend": "^2.17.0",
