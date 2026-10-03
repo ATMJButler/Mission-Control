@@ -1,0 +1,2 @@
+import {projectDispatchEnabled} from "./project-dispatch-upstream.js";
+const before=process.env.MC_PROJECT_V1_DISPATCH;delete process.env.MC_PROJECT_V1_DISPATCH;if(projectDispatchEnabled())throw new Error("dispatcher defaulted on");process.env.MC_PROJECT_V1_DISPATCH="enabled";if(!projectDispatchEnabled())throw new Error("dispatcher flag ignored");if(before===undefined)delete process.env.MC_PROJECT_V1_DISPATCH;else process.env.MC_PROJECT_V1_DISPATCH=before;console.log(JSON.stringify({ok:true,defaultOff:true}));
