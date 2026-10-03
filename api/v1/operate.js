@@ -1,3 +1,5 @@
+import {validateProjectDispatch} from "../../auth/project-dispatch.js";
+import {enqueueProjectOperation} from "../../auth/project-dispatch-upstream.js";
 import {requireMissionControlOrigin} from "../../auth/origin.js";
 import {installUpstreamDirectoryAdapter} from "../../auth/upstream-directory.js";
 import {installClerkIdentityAdapter} from "../../auth/clerk-adapter.js";
@@ -21,8 +23,12 @@ export default async function handler(req,res){
     const ctx=await resolveAccessContext(identity,householdId);
     const auth=authorize({user:ctx.user,household:ctx.household,membership:ctx.membership,resource,operation});
     if(!auth.ok)return res.status(403).json({ok:false,error:"Forbidden",reason:auth.reason});
-    // Intentionally no mutation dispatcher yet. Auth boundary must be commissioned first.
-    return res.status(501).json({ok:false,error:"Authorized boundary reached; resource mutation dispatcher not commissioned.",authorization:auth});
+    if(resource!=="projects")return res.status(400).json({ok:false,error:"Dispatcher resource not supported"});
+    if(ctx.membership.role!=="principal")return res.status(403).json({ok:false,error:"Principal-only dispatcher commissioning",reason:"PRINCIPAL_REQUIRED"});
+    const validated=validateProjectDispatch({operation,resourceId:String(body.resourceId||""),expectedVersion:body.expectedVersion,patch:body.patch});
+    if(!validated.ok)return res.status(validated.status).json({ok:false,error:validated.reason,fields:validated.fields});
+    const result=await enqueueProjectOperation({validated,householdId:ctx.household.householdId,userId:ctx.user.userId});
+    return res.status(202).json({ok:true,accepted:true,result});
   }catch(e){
     const status=Number(e&&e.statusCode)||500;
     return res.status(status).json({ok:false,error:String(e&&e.message||e),code:e&&e.code||"AUTH_ERROR"});
