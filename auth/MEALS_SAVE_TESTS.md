@@ -45,3 +45,35 @@ manually by John on the existing Web App; do not deploy through clasp.
 
 Auth CI now also runs when the browser file changes. Restoring the old omitted
 version request in a temporary copy makes the regression suite fail.
+
+## Conflict review
+
+After a conflict or UNKNOWN result, the browser offers **Review latest shared
+plan**. Loading the comparison is read-only and does not update the local draft
+or its write baseline. Both plans show meal choices, recipe details, groceries,
+inventory, and settings; dynamic content is escaped. The comparison uses two
+columns on desktop and stacks on small screens.
+
+Users can keep editing, explicitly load the shared plan on this device, or save
+their draft against the version they reviewed. Loading shared data requires
+confirmation and retains one earlier local draft for restoration. Recovery data
+stays inside the existing user-scoped state, so the normal sign-out clearing
+also removes it. Restoring a draft requires a fresh review before saving.
+
+The pending-review marker is persisted with local edits. Initial/reload fetches
+do not overwrite a pending draft, including an initial read already in flight.
+Closing or superseding a review ignores late responses. Changed local edits
+are shown again before saving. A reviewed save that conflicts again or returns
+an unconfirmed outcome requires another readback; no automatic retry or new
+approval occurs.
+
+Twelve review tests cover read-only comparisons, failed and late reads, escaped
+content, confirmation and restoration, reviewed-version propagation, new shared
+conflicts, edits after comparison, reload preservation, and uncertain responses.
+Transport/body loss, server errors, and invalid success versions require
+readback instead of allowing a blind resend. Desktop/mobile
+Chromium smoke checks also exercised the actual page controls with mocked APIs,
+including no mobile horizontal overflow, conflict→review→reload→load shared→
+restore local draft→reviewed save. These are offline browser evidence, not
+production commissioning. The feature does not merge individual changed fields
+automatically and does not establish durable operation replay for Meals.
