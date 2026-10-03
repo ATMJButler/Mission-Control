@@ -26,7 +26,7 @@ export default async function handler(req,res){
       if(!["save_draft","approve"].includes(operation))return res.status(400).json({ok:false,error:"Unsupported meal operation"});
       const auth=authorize({user:ctx.user,household:ctx.household,membership:ctx.membership,resource:"meals",operation});
       if(!auth.ok)return res.status(403).json({ok:false,error:"Forbidden",reason:auth.reason});
-      const payload={token,resource:"meals",operation,actor:ctx.user.userId,householdId:ctx.household.householdId,meals:body.meals||{}};
+      const payload={token,resource:"meals",operation,actor:ctx.user.userId,householdId:ctx.household.householdId,meals:body.meals||{},expectedVersion:body.expectedVersion};
       const r=await fetch(upstream,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload),cache:"no-store"});
       return res.status(r.status).setHeader("Content-Type","application/json; charset=utf-8").send(await r.text());
     }
