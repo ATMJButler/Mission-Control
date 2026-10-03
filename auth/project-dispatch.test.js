@@ -11,6 +11,8 @@ for(const bad of [
  {operation:"update_project",resourceId:"p1",expectedVersion:2,patch:{progress:101}},
  {operation:"update_project",resourceId:"p1",expectedVersion:2,patch:{progress:"50"}},
  {operation:"update_project",resourceId:"p1",expectedVersion:2,patch:{deadline:"10/2/2026"}},
+ {operation:"update_project",resourceId:"p1",expectedVersion:2,patch:{deadline:"2026-02-30"}},
+ {operation:"update_project",resourceId:"p1",expectedVersion:2,patch:{deadline:"2026-13-01"}},
  {operation:"update_project",resourceId:"p1",expectedVersion:2,patch:{tags:["ok",""]}},
  {operation:"update_project",resourceId:"p1",expectedVersion:2,patch:{name:""}}
 ])if(validateProjectDispatch(bad).ok)throw new Error("invalid dispatch accepted "+JSON.stringify(bad));
