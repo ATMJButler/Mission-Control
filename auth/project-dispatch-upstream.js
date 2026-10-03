@@ -1,10 +1,10 @@
 import crypto from "node:crypto";
 export function projectDispatchEnabled(){return process.env.MC_PROJECT_V1_DISPATCH==="enabled"}
-export async function enqueueProjectOperation({validated,householdId,userId}){
+export async function enqueueProjectOperation({validated,householdId,userId,operationId}){
   if(!projectDispatchEnabled())throw Object.assign(new Error("Project-v1 dispatcher is not commissioned."),{statusCode:503,code:"PROJECT_V1_DISPATCH_DISABLED"});
   const upstream=process.env.MC_SYNC_URL,token=process.env.MC_SYNC_TOKEN;
   if(!upstream||!token)throw Object.assign(new Error("Private Project-v1 upstream unavailable."),{statusCode:503,code:"PROJECT_UPSTREAM_UNAVAILABLE"});
-  const body={token,resource:"project_trusted_operation",operationId:"ui_"+crypto.randomUUID(),householdId,actor:userId,operation:validated.operation,projectId:validated.resourceId,expectedVersion:validated.expectedVersion};if(validated.patch)body.patch=validated.patch;
+  const body={token,resource:"project_trusted_operation",operationId:operationId||("ui_"+crypto.randomUUID()),householdId,actor:userId,operation:validated.operation,projectId:validated.resourceId,expectedVersion:validated.expectedVersion};if(validated.patch)body.patch=validated.patch;
   let r;try{r=await fetch(upstream,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(body),cache:"no-store"})}catch(_e){throw Object.assign(new Error("Project operation outcome unknown; reconcile by operationId and project readback before retry."),{statusCode:502,code:"PROJECT_OUTCOME_UNKNOWN",operationId:body.operationId})}
   const text=await r.text();let result;try{result=JSON.parse(text)}catch(_e){throw Object.assign(new Error("Project operation outcome unknown; non-JSON upstream response requires readback reconciliation."),{statusCode:502,code:"PROJECT_OUTCOME_UNKNOWN",operationId:body.operationId})}
   if(!r.ok)throw Object.assign(new Error("Project upstream HTTP "+r.status),{statusCode:502,code:"PROJECT_UPSTREAM_HTTP"});
