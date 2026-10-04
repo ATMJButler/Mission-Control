@@ -169,3 +169,6 @@ test("response projection strips unknown fields and local build identity remains
   assert.equal(deploymentDiagnostics({CLERK_PUBLISHABLE_KEY:"pk_test_private",CLERK_SECRET_KEY:"sk_live_private"}).clerkSecretKeyMode,"production");
   assert.ok(!JSON.stringify(deploymentDiagnostics({CLERK_SECRET_KEY:"sk_live_private"})).includes("private"));
 });
+test('member gates are observed independently; older backends remain unverified',()=>{
+ const h=setup();h.properties.set('MEMBER_SETUP','enabled');h.properties.set('MEMBER_DASHBOARD','disabled');const raw=report(h),safe=sanitizeDiagnostics(raw);assert.equal(safe.gates.memberSetup,true);assert.equal(safe.gates.memberDashboard,false);delete raw.gates.memberSetup;delete raw.gates.memberDashboard;const old=sanitizeDiagnostics(raw);assert.equal(old.gates.memberSetup,null);assert.equal(old.gates.memberDashboard,null);assert.equal(deploymentDiagnostics({MC_MEMBER_SETUP:'enabled'}).memberSetup,true);assert.equal(deploymentDiagnostics({MC_MEMBER_DASHBOARD:'true'}).memberDashboard,false);assertNoWrites(h);
+});

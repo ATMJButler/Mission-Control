@@ -23,6 +23,7 @@ function rejectUnknownFields_(body,allowed){const unknown=Object.keys(body||{}).
 function doPost(e){try{
   const body=JSON.parse((e&&e.postData&&e.postData.contents)||'{}');
   authorize_(body.token);
+  if(body.resource==="member_dashboard")return json_(readMemberDashboard_(body));
   if(body.resource==="member_setup")return json_(memberSetup_(body));
   if(body.resource==="system_diagnostics"){
     rejectUnknownFields_(body,["token","resource","operation","householdId","actor"]);
@@ -217,7 +218,9 @@ function readSystemDiagnostics_(body) {
     return {ok: true, diagnostics: {
       schemaVersion: 1, readOnly: true, checkedAt: new Date().toISOString(),
       source: {gitSha: MC_SOURCE_SHA, canonicalSha256: MC_CANONICAL_SHA256, legacyBuildId: MC_BUILD_ID, immutableVersion: null},
-      gates: {projectV1TrustedDispatch: PropertiesService.getScriptProperties().getProperty("PROJECT_V1_TRUSTED_DISPATCH") === "enabled"},
+      gates: {projectV1TrustedDispatch: PropertiesService.getScriptProperties().getProperty("PROJECT_V1_TRUSTED_DISPATCH") === "enabled",
+        memberSetup: PropertiesService.getScriptProperties().getProperty("MEMBER_SETUP") === "enabled",
+        memberDashboard: PropertiesService.getScriptProperties().getProperty("MEMBER_DASHBOARD") === "enabled"},
       snapshot: {coordination: "shared-script-lock", legacyWritesSerialized: false},
       sheets: {legacyProjects, projectResources, projectOperationAudit}, fixture, recentFixtureOperations,
       identity: {activeUsers: users.rows.filter(r => householdUserIds.has(String(r[0])) && r[1] === "active").length,
@@ -314,4 +317,77 @@ function memberSetup_(body){
     SpreadsheetApp.flush();return{ok:true,profile:next};
   }catch(error){if(writing)throw new Error('MEMBER_SETUP_OUTCOME_UNKNOWN');throw error}
   finally{try{if(writing)SpreadsheetApp.flush()}catch(_e){console.error('Member setup cleanup flush failed')}finally{lock.releaseLock()}}
+}
+
+// Read-only member dashboard: never invoke header-repair/initializing legacy readers.
+function memberText_(value){return typeof value==='string'?value.slice(0,500):''}
+function memberObject_(value){return value&&typeof value==='object'&&!Array.isArray(value)}
+function memberCellJson_(cell){const value=typeof cell==='string'?JSON.parse(cell):cell;if(!memberObject_(value))throw new Error('Invalid snapshot');return value}
+function memberBudgetRead_(householdId){
+  if(householdId!=='butler-household')return{state:'missing',value:null};
+  const table=diagnosticsTable_('Projects',HEADERS);
+  if(!table.present)return{state:'missing',value:null};
+  if(!table.headersValid)return{state:'unavailable',value:null};
+  const sheet=SpreadsheetApp.getActive().getSheetByName('Projects'),width=sheet.getLastColumn();
+  const columns=sheet.getRange(1,1,1,width).getValues()[0].map(String);
+  const snapshots=(sheet.getLastRow()>1?sheet.getRange(2,1,sheet.getLastRow()-1,width).getValues():[]).filter(row=>row[25]!==''&&row[25]!==null&&row[25]!==undefined);
+  if(!snapshots.length)return{state:'missing',value:null};
+  if(snapshots.length!==1)return{state:'unavailable',value:null};
+  try{
+    const raw=memberCellJson_(snapshots[0][25]);
+    const budgetColumns=columns.map((name,index)=>name==='budgetData'?index:-1).filter(index=>index>=0);
+    if(budgetColumns.length>1)throw new Error('Ambiguous budget data');
+    if(budgetColumns.length===1&&snapshots[0][budgetColumns[0]]){const budgetData=memberCellJson_(snapshots[0][budgetColumns[0]]);if(budgetData.reconciliation)raw.budgetReconciliation=budgetData.reconciliation}
+    if(!memberObject_(raw.budget)||!Array.isArray(raw.budget.categories)||raw.budget.categories.length>100)throw new Error('Invalid budget');
+    const names=new Set(),categories=raw.budget.categories.map(row=>{
+      if(!memberObject_(row))throw new Error('Invalid category');
+      const name=memberText_(row.name||row.b).trim(),planned=row.planned!==undefined?row.planned:row.limit!==undefined?row.limit:row.t;
+      if(!name||names.has(name)||typeof planned!=='number'||!Number.isFinite(planned)||planned<0)throw new Error('Invalid category');
+      names.add(name);return{name:name,planned:planned};
+    });
+    const rec=raw.budgetReconciliation&&raw.budgetReconciliation.categories;
+    const reconciliation=[];
+    if(Array.isArray(rec))for(const category of categories){const matches=rec.filter(row=>memberObject_(row)&&row.name===category.name);if(matches.length>1)throw new Error('Duplicate reconciliation');if(matches.length===1){const spent=matches[0].spent;if(typeof spent!=='number'||!Number.isFinite(spent)||spent<0)throw new Error('Invalid spend');reconciliation.push({name:category.name,spent:spent})}}
+    return{state:'available',value:{asOf:memberText_(raw.asOf),budget:{categories:categories},budgetReconciliation:{categories:reconciliation}}};
+  }catch(_e){return{state:'unavailable',value:null}}
+}
+function memberMealsRead_(householdId){
+  const table=diagnosticsTable_('Meals',['key','householdId','schemaVersion','updatedAt','updatedBy','status','json','notes']);
+  if(!table.present)return{state:'missing',value:null};
+  if(!table.headersValid)return{state:'unavailable',value:null};
+  const rows=table.rows.filter(row=>String(row[1])===householdId);
+  if(!rows.length)return{state:'missing',value:null};
+  if(rows.length!==1)return{state:'unavailable',value:null};
+  try{
+    const raw=memberCellJson_(rows[0][6]),plan=raw.approved;
+    if(raw.householdId!==householdId)throw new Error('Foreign meals');
+    if(!plan)return{state:'missing',value:null};
+    if(!memberObject_(plan)||!Array.isArray(plan.days)||plan.days.length>7||plan.days.some(day=>!memberObject_(day)))throw new Error('Invalid meal plan');
+    const grocery=Array.isArray(plan.groceryList)?plan.groceryList:[];
+    if(grocery.length>200||grocery.some(item=>!memberObject_(item)))throw new Error('Invalid groceries');
+    return{state:'available',value:{householdId:householdId,approved:{weekStart:memberText_(plan.weekStart),days:plan.days.map(day=>({date:memberText_(day.date),meal:memberText_(day.meal),prep:memberText_(day.prep)})),groceryList:grocery.map(item=>({item:memberText_(item.item),qty:memberText_(item.qty),done:item.done===true}))}}};
+  }catch(_e){return{state:'unavailable',value:null}}
+}
+function memberFamilyRead_(householdId){
+  const table=diagnosticsTable_('Project Resources',['id','householdId','schemaVersion','version','lifecycle','operatingState','name','area','scope','createdAt','createdBy','updatedAt','updatedBy','legacyProjectId','resourceJson','notes']);
+  if(!table.present)return{state:'missing',value:[]};
+  if(!table.headersValid)return{state:'unavailable',value:[]};
+  const rows=table.rows.filter(row=>String(row[1])===householdId),counts=new Map();
+  table.rows.forEach(row=>counts.set(String(row[0]),(counts.get(String(row[0]))||0)+1));
+  if(rows.some(row=>counts.get(String(row[0]))!==1))return{state:'unavailable',value:[]};
+  const shared=rows.filter(row=>row[8]==='household:shared'&&row[4]==='active');
+  if(shared.length>500)return{state:'unavailable',value:[]};
+  return{state:'available',value:shared.map(row=>({id:String(row[0]),name:memberText_(row[6]),householdId:householdId,lifecycle:'active',scope:'household:shared'}))};
+}
+function readMemberDashboard_(body){
+  if(PropertiesService.getScriptProperties().getProperty('MEMBER_DASHBOARD')!=='enabled')throw new Error('MEMBER_DASHBOARD_DISABLED');
+  rejectUnknownFields_(body,['token','resource','operation','householdId','actor']);
+  if(body.operation!=='read')throw new Error('MEMBER_DASHBOARD_READ_ONLY');
+  const lock=LockService.getScriptLock();lock.waitLock(30000);
+  try{
+    memberSetupAuthority_(body);
+    const budget=memberBudgetRead_(body.householdId),meals=memberMealsRead_(body.householdId),family=memberFamilyRead_(body.householdId);
+    const setup=memberSetupRecord_(body);
+    return{ok:true,householdId:body.householdId,budgetSnapshot:budget.value,meals:meals.value,familyResources:family.value,profile:setup.record?setup.record.profile:null,sections:{budget:budget.state,meals:meals.state,family:family.state}};
+  }finally{lock.releaseLock()}
 }

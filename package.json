@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:auth": "node auth/authorization.test.js && node auth/directory-model.test.js && node auth/legacy-sync-envelope.test.js && node auth/invitation-token.test.js && node auth/meals-approval.test.js && node auth/project-dispatch.test.js && node auth/project-dispatch-upstream.test.js && node auth/project-apps-script-contract.test.js && npm run test:project-runtime && npm run test:meals-runtime && npm run test:diagnostics && npm run test:money && npm run test:workspace && npm run test:member-projection && npm run test:family-calendar && npm run test:member-setup",
+    "test:auth": "node auth/authorization.test.js && node auth/directory-model.test.js && node auth/legacy-sync-envelope.test.js && node auth/invitation-token.test.js && node auth/meals-approval.test.js && node auth/project-dispatch.test.js && node auth/project-dispatch-upstream.test.js && node auth/project-apps-script-contract.test.js && npm run test:project-runtime && npm run test:meals-runtime && npm run test:diagnostics && npm run test:money && npm run test:workspace && npm run test:member-projection && npm run test:family-calendar && npm run test:member-setup && npm run test:member-dashboard",
     "test:project-runtime": "node --test auth/project-apps-script-runtime.test.js",
     "test:meals-runtime": "node --test auth/meals-save-runtime.test.js auth/meals-lock-runtime.test.js auth/meals-review.test.js",
     "test:diagnostics": "node --test auth/diagnostics.test.js",
@@ -11,7 +11,8 @@
     "test:workspace": "node --test auth/workspace.test.js",
     "test:member-projection": "node --test auth/member-projection.test.js",
     "test:family-calendar": "node --test auth/family-calendar.test.js",
-    "test:member-setup": "node --test auth/member-setup.test.js auth/member-setup-ui.test.js"
+    "test:member-setup": "node --test auth/member-setup.test.js auth/member-setup-ui.test.js",
+    "test:member-dashboard": "node --test auth/member-dashboard.test.js auth/member-dashboard-ui.test.js"
   },
   "dependencies": {
     "@clerk/backend": "^2.17.0",
