@@ -7,6 +7,7 @@ on:
     paths:
       - "google_apps_script_Code.gs"
       - ".github/workflows/deploy-apps-script.yml"
+      - "scripts/stage-apps-script.mjs"
 
 permissions:
   contents: read
@@ -51,7 +52,7 @@ jobs:
       - name: Stage Apps Script source
         run: |
           mkdir -p apps-script-dist
-          cp google_apps_script_Code.gs apps-script-dist/Code.gs
+          node scripts/stage-apps-script.mjs
           cat > apps-script-dist/appsscript.json <<'EOF'
           {
             "timeZone": "America/Chicago",
@@ -78,6 +79,7 @@ jobs:
         run: |
           echo "Source pushed and immutable version $APPS_SCRIPT_VERSION created."
           echo "Production Web App deployment is intentionally NOT mutated by clasp until a WebAppConfig-preserving deployer is commissioned."
+          echo "::notice title=Apps Script release candidate::Immutable version $APPS_SCRIPT_VERSION; source $GITHUB_SHA; production promotion pending."
           {
             echo "## Apps Script release candidate"
             echo "Source SHA: $GITHUB_SHA"

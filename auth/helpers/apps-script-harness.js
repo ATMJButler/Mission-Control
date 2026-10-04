@@ -3,13 +3,13 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import vm from "node:vm";
 
-const source = fs.readFileSync(new URL("../../google_apps_script_Code.gs", import.meta.url), "utf8");
+const canonicalSource = fs.readFileSync(new URL("../../google_apps_script_Code.gs", import.meta.url), "utf8");
 const copy = value => structuredClone(value);
 
 // Executes the whole canonical source; only Google platform services are replaced.
 // Writes are buffered until flush, so tests can distinguish visible and durable state.
 // This synchronous model cannot establish real ScriptLock concurrency or Google durability.
-export function createAppsScriptHarness() {
+export function createAppsScriptHarness({source = canonicalSource} = {}) {
   const sheets = new Map(), events = [], errors = [];
   const properties = new Map([["SYNC_TOKEN", "offline-service-token"], ["PROJECT_V1_TRUSTED_DISPATCH", "enabled"]]);
   let held = false, flushCount = 0, fault = () => {};

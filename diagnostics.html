@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>System checks · Mission Control</title>
+  <link rel="stylesheet" href="./auth-ui.css">
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#07111f;color:#edf4fa;font:16px/1.5 system-ui,sans-serif}main{max-width:920px;margin:40px auto;padding:0 20px 90px}a{color:#94c5ff}h1{margin-bottom:8px}p{color:#b1c1d3}form,.panel{background:#0d1a2c;border:1px solid #315174;border-radius:16px;padding:20px;margin:20px 0}label{display:block;margin-bottom:8px}input,button{font:inherit;border:1px solid #315174;border-radius:9px;padding:10px 14px}input{background:#07111f;color:#edf4fa;max-width:100%;width:280px}button{background:#183657;color:#edf4fa;cursor:pointer;margin:8px 8px 0 0}button:disabled{opacity:.5;cursor:default}dl{display:grid;grid-template-columns:minmax(130px,1fr) minmax(0,2fr);gap:12px}dt{color:#b1c1d3}dd{margin:0;overflow-wrap:anywhere}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}#checkStatus{min-height:24px}@media(max-width:540px){main{margin-top:24px}dl{grid-template-columns:1fr;gap:4px}dd{margin-bottom:12px}}
+  </style>
+  <script src="./diagnostics-ui.js?v=1" defer></script>
+  <script src="./auth-ui.js" defer></script>
+</head>
+<body>
+  <div id="mcAuthGate"><div class="mc-auth-card"><h1>Mission Control</h1><p>Sign in to run principal system checks.</p><div id="mcClerkMount"></div><div class="mc-auth-state" id="mcAuthState">Loading secure sign-in…</div></div></div>
+  <main>
+    <a href="/">← Mission Control</a>
+    <h1>System checks</h1>
+    <p>Read-only deployment and commissioning evidence. These checks do not change gates, create fixtures, or approve commissioning or cutover.</p>
+    <form id="checkForm">
+      <label for="householdId">Household ID</label>
+      <input id="householdId" value="butler-household" required maxlength="120" autocomplete="off">
+      <button id="runChecks" type="submit" disabled>Run checks</button>
+      <button id="downloadReport" type="button" disabled>Download report</button>
+      <p id="checkStatus" role="status" aria-live="polite">Sign in to continue.</p>
+    </form>
+    <section id="checkResults" class="panel" hidden>
+      <h2>Latest snapshot</h2>
+      <dl id="checkSummary"></dl>
+      <p>The Apps Script version number still requires deployment metadata or manual confirmation. Legacy writes do not share this snapshot’s lock. Counts and fingerprints are evidence for comparison, not proof of completed runtime commissioning.</p>
+      <details><summary>Report details</summary><pre id="checkReport"></pre></details>
+    </section>
+  </main>
+</body>
+</html>

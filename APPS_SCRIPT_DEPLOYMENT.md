@@ -21,6 +21,8 @@ Release flow:
 5. In Apps Script → Deploy → Manage deployments, edit the existing **Mission Control API** Web App and promote it to the newly created version while preserving Execute as Me / Anyone and the same deployment URL.
 6. Record the workflow source SHA and immutable version from the Actions run summary. Verify the selected version in Manage deployments and that `/exec` returns application/json, then verify Mission Control behavior/readback. The current `MC_BUILD_ID` is stale and must not be used as definitive source/version evidence.
 
+The staged source now carries the full release SHA and canonical-source SHA-256 via `scripts/stage-apps-script.mjs`. The run also publishes version/SHA as a GitHub check annotation for automated readback. After promotion, a principal can use `/diagnostics.html` to inspect those source stamps and the independent dispatcher gates; see [diagnostics evidence limits](auth/DIAGNOSTICS.md). A numeric immutable version is still verified separately in deployment metadata, not inferred from buildId or reported as known by the runtime endpoint.
+
 Never commit `.clasprc.json`, OAuth refresh tokens, or private Mission Control sync tokens.
 
 ## Recover an expired Google credential
