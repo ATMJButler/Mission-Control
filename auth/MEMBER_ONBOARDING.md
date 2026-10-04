@@ -12,9 +12,13 @@ Routing uses an origin-checked POST read so older GET-caching service workers ca
 
 This is source/offline evidence until real secondary commissioning occurs. It does not prove secondary privacy across every resource, existing browser copies, external shared links or connected providers.
 
-## Scope decision pending
+## Approved initial scope
 
-John must choose whether Julie initially receives shared Budget/Meals/explicitly shared family items only, or also household account balances/debt details. Do not infer this choice from hidden tabs or publish raw financeData while the decision is pending. Do not infer shared family scope from a Project name, area or the existing John agenda snapshot.
+John selected shared Budget, Meals and explicitly shared family items only. Account balances, debt details, transaction descriptions and private work are excluded. Do not infer shared family scope from a Project name, area or the existing John agenda snapshot.
+
+`auth/member-projection.js` defines a tested, allowlisted output contract for future member reads: budget category aggregates (unavailable reconciliation remains unknown), approved meal days and grocery items, and active Project Resources with exact household and `household:shared` scope. Duplicate resource IDs in the selected household fail closed. This module is not an authorization layer: the API and private backend must independently verify active membership and household before invoking it. Legacy finance snapshots must never be treated as belonging to arbitrary households; the future reader must establish the Butler source ownership and reject ambiguous snapshots.
+
+The projection is not yet connected to a public member API or dashboard. No production sharing, gate activation, data mutation or Apps Script promotion is part of this change. Field projection tests are offline evidence, not secondary runtime acceptance.
 
 ## Remaining implementation
 
@@ -29,3 +33,13 @@ John must choose whether Julie initially receives shared Budget/Meals/explicitly
 ## Current rollout
 
 The workspace-boundary change is Vercel-only and uses the existing Apps Script directory operation. It needs no new Sheet tab, production data mutation, gate toggle or Apps Script promotion. Apps Script canonical digest remains unchanged; its version 84 source stamp stays separate from later frontend release SHAs. Independent live secondary acceptance is still pending.
+
+## Personal connections and Family Calendar
+
+Julie needs her own calendar and email connections, selected individually, with her personal schedule private by default. Provider OAuth consent, account/calendar selection, token storage, revoke/disconnect and verified refresh are still unimplemented. The existing John agenda snapshot does not establish these capabilities for members.
+
+The family compiler (`auth/family-calendar.js`) accepts only trusted stored sharing records after independent membership authorization. It excludes foreign households, revoked owners, private events, cancelled events and unconfirmed email suggestions. Sharing modes are `details` or `busy`; Busy suppresses source calendar names, titles, provider IDs and all extra payload fields. `shareId` must be a random opaque sharing-record key, never a provider ID. Source labels on detailed events must be explicitly approved for sharing. Participants come from the trusted sharing record, not browser assertions. Duplicate shared IDs fail closed. Provider adapters must collapse updates into one current record and propagate deletions before compilation.
+
+Conflicts mean overlapping commitments involving at least one common active participant. Adjacent events are not conflicts. Timed events require explicit offsets and normalize to UTC; all-day end dates are exclusive. Mixed all-day/timed conflicts require timezone-aware provider normalization and are deliberately not inferred yet. Reminders and provider writeback are not delivered by this compiler.
+
+`family-calendar.html` is a clearly labeled standalone design preview with opt-in synthetic events, timezone display, Busy blocks and conflict warnings. It fetches no household data, persists no personal data, and is not linked into the normal workspace. The compiler and preview are source/offline evidence only. Before live activation: add an authorized private sharing store with CAS, confirm/share/unshare controls, provider adapters, a projected member API, revoke/refresh tests and real identity commissioning. Do not use the principal-only legacy agenda endpoint as a shortcut.
