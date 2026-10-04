@@ -30,6 +30,7 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}.app{min-height:
 .desc{font-size:12px;color:var(--muted);margin:8px 0}.state{font-size:12px}.next{background:#091525;border-left:3px solid var(--accent);padding:9px;border-radius:8px;margin-top:8px;font-size:12px}.next b{display:block;color:#9ed0f7;font-size:10px;text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px}.meta{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px}.meta div{font-size:10px;color:var(--muted)}.meta b{display:block;color:#e0e8f0;margin-top:2px}.age{font-weight:800}.age.warn{color:var(--warn)}.age.bad{color:var(--bad)}
 .progress{height:7px;border-radius:999px;background:#07111e;border:1px solid #1c314b;margin-top:10px;overflow:hidden}.progress>div{height:100%;background:linear-gradient(90deg,#6cc0ff,#7fe0bc)}
 .two-col{display:grid;grid-template-columns:1.2fr .8fr;gap:12px}.panel{background:#0d1a2c;border:1px solid var(--line);border-radius:15px;padding:13px}.panel h3{margin:0 0 9px}.list{display:flex;flex-direction:column;gap:7px}.item{background:#091525;border:1px solid #203550;border-radius:10px;padding:9px}.item b{display:block}.item span,.item small{font-size:11px;color:var(--muted)}
+#mealReviewComparison{grid-template-columns:repeat(2,minmax(0,1fr));overflow-wrap:anywhere}#mealReviewPanel .btn:disabled{opacity:.5;cursor:not-allowed}@media(max-width:820px){#mealReviewComparison{grid-template-columns:1fr}}
 .action-row{display:grid;grid-template-columns:auto 1fr auto;gap:9px;align-items:center;background:#091525;border:1px solid #203550;border-radius:10px;padding:9px}.action-row input[type=checkbox]{width:18px;height:18px}.action-row b{display:block}.action-row small{color:var(--muted)}
 .review-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.review-card{background:#0d1a2c;border:1px solid var(--line);border-radius:15px;padding:13px}.review-card h4{margin:0 0 7px}.review-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}.review-actions .btn{padding:7px 9px;font-size:11px}
 .win-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.win{background:#0d1a2c;border:1px solid var(--line);border-radius:15px;padding:13px}.win .n{font-size:31px;font-weight:900}.win .l{font-size:11px;color:var(--muted)}
@@ -171,7 +172,15 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}.app{min-height:
   <div class="hero">
     <div class="hero-top"><div><h2>Meals</h2><div class="hero-sub">The Butler household meal plan, grocery list, and what dinner is tonight.</div></div><div class="actions"><button class="btn primary" id="planMealsBtn" type="button" onclick="planNextWeek()">Plan Next Week</button><button class="btn" id="saveMealsBtn" type="button" onclick="saveMeals(true)">Save Draft</button><button class="btn primary" id="approveMealsBtn" type="button" onclick="approveMeals()">Approve Week</button></div></div>
     <div class="hint" id="mealWeekLabel" style="margin-top:8px"></div><div class="hint" id="mealSaveStatus" style="margin-top:6px;font-weight:800">Meals build 2026.10.01.4 • shared save ready</div>
+    <div class="actions" style="margin-top:8px"><button class="btn" id="mealReviewBtn" type="button" onclick="reviewSharedMeals()" hidden>Review latest shared plan</button><button class="btn" id="mealRestoreDraftBtn" type="button" onclick="restoreLocalMealDraft()" hidden>Restore my earlier draft</button></div>
     <div class="hero-grid" id="mealHeroGrid" style="margin-top:14px"></div>
+  </div>
+  <div class="panel" id="mealReviewPanel" role="region" aria-labelledby="mealReviewTitle" hidden style="margin-top:12px">
+    <div class="section-title" style="margin-top:0"><h3 id="mealReviewTitle" tabindex="-1">Review shared Meals</h3><button class="btn" type="button" onclick="closeMealReview()">Keep editing</button></div>
+    <p class="hint" id="mealReviewStatus" role="status" aria-live="polite">Your draft stays on this device while you compare.</p>
+    <div class="two-col" id="mealReviewComparison"></div>
+    <p class="hint">Saving your draft instead replaces shared meal choices, recipes, groceries, inventory, and settings with yours. The previously approved plan is kept.</p>
+    <div class="actions"><button class="btn" id="mealReviewRefreshBtn" type="button" onclick="reviewSharedMeals()">Refresh comparison</button><button class="btn" id="mealUseSharedBtn" type="button" onclick="useReviewedSharedMeals()" disabled>Use shared plan on this device</button><button class="btn primary" id="mealSaveReviewedBtn" type="button" onclick="saveReviewedMealDraft()" disabled>Save my draft instead</button></div>
   </div>
   <div class="section-title"><h3>This week</h3><div class="hint">Edit the meal directly. Prep notes are optional and only surface when useful.</div></div>
   <div class="list" id="mealWeek"></div>
@@ -613,6 +622,7 @@ function ensureMealWeek(){
   state.meals.groceryList=state.meals.groceryList||[];state.meals.inventory=state.meals.inventory||[];
 }
 function renderMeals(){
+  const restore=document.getElementById("mealRestoreDraftBtn");if(restore)restore.hidden=!(state.mealsRecovery&&state.mealsRecovery.draft);
   ensureMealWeek();const m=state.meals;m.days.forEach(x=>{x.recipe=x.recipe||{servings:"",time:"",ingredients:[],instructions:"",notes:""};x.recipe.ingredients=Array.isArray(x.recipe.ingredients)?x.recipe.ingredients:[]});const todayKey=today(),todayMeal=m.days.find(x=>x.date===todayKey),planned=m.days.filter(x=>x.meal).length,groceries=m.groceryList.filter(x=>!x.done).length;
   mealWeekLabel.textContent="Week of "+new Date(m.weekStart+"T12:00:00").toLocaleDateString(undefined,{month:"long",day:"numeric",year:"numeric"})+" • "+(m.status==="approved"?"Approved household plan":"Draft plan");
   mealHeroGrid.innerHTML=[[todayMeal&&todayMeal.meal?todayMeal.meal:"Not planned","Dinner tonight",todayMeal&&todayMeal.prep?todayMeal.prep:"No prep note"],[planned+"/7","Meals planned","Across the current week"],[groceries,"Groceries left","Unchecked shared-list items"],[m.settings&&m.settings.primaryStore||"Walmart","Primary store","Shopping list default"]].map(x=>`<div class="hero-stat"><div class="n" style="font-size:${String(x[0]).length>18?"18px":"28px"}">${esc(x[0])}</div><div class="l">${x[1]}</div><div class="d">${esc(x[2])}</div></div>`).join("");
@@ -629,19 +639,91 @@ function openMealRecipe(i){const x=state.meals.days[i];if(!x)return;x.recipe=x.r
 function saveMealRecipe(){const i=Number(mealRecipeIndex.value),x=state.meals.days[i];if(!x)return;x.recipe={servings:mealRecipeServings.value.trim(),time:mealRecipeTime.value.trim(),ingredients:mealRecipeIngredients.value.split("\n").map(v=>v.trim()).filter(Boolean),instructions:mealRecipeInstructions.value.trim(),notes:mealRecipeNotes.value.trim()};state.meals.status="draft";saveMeals(false);closeModal("mealRecipeModal");renderMeals();toast("Recipe saved")}
 function addRecipeIngredientsToGrocery(){const i=Number(mealRecipeIndex.value),x=state.meals.days[i];if(!x)return;const ingredients=mealRecipeIngredients.value.split("\n").map(v=>v.trim()).filter(Boolean),existing=new Set(state.meals.groceryList.map(g=>String(g.item||"").toLowerCase()));let added=0;ingredients.forEach(item=>{if(!existing.has(item.toLowerCase())){state.meals.groceryList.push({item,qty:"",done:false,sourceMeal:x.meal||"",addedAt:new Date().toISOString()});existing.add(item.toLowerCase());added++}});saveMeals(false);renderMeals();toast(added+" ingredient"+(added===1?"":"s")+" added to grocery list")}
 async function loadMeals(){
-  try{const r=await fetch("/api/meals?t="+Date.now(),{cache:"no-store"});const x=await r.json();if(x&&x.ok&&x.meals){mealsDurable=x.meals;state.meals=JSON.parse(JSON.stringify(x.meals.draft||x.meals.approved||x.meals));delete state.meals._durable;localStorage.setItem(storageKey()||LEGACY_KEY,JSON.stringify(state));renderMeals();return true}}catch(e){}return false
+  if(state.mealsNeedsReview){const review=document.getElementById("mealReviewBtn"),status=document.getElementById("mealSaveStatus");if(review)review.hidden=false;if(status)status.textContent="Your local draft is kept. Review latest shared Meals before saving.";return false}
+  try{const r=await fetch("/api/meals?t="+Date.now(),{cache:"no-store"});const x=await r.json();if(x&&x.ok&&x.meals){if(state.mealsNeedsReview)return false;mealsDurable=x.meals;state.meals=JSON.parse(JSON.stringify(x.meals.draft||x.meals.approved||x.meals));delete state.meals._durable;localStorage.setItem(storageKey()||LEGACY_KEY,JSON.stringify(state));renderMeals();return true}}catch(e){}return false
 }
 function durableMealsPayload(){
   ensureMealWeek();const existing=mealsDurable?JSON.parse(JSON.stringify(mealsDurable)):{};const clean=JSON.parse(JSON.stringify(state.meals,(k,v)=>k==="_durable"?undefined:v));const draft={weekStart:clean.weekStart||"",days:clean.days||[],groceryList:clean.groceryList||[],inventory:clean.inventory||[],settings:clean.settings||{},updatedAt:new Date().toISOString()};
   return {...existing,schemaVersion:1,householdId:"butler-household",draft,recipes:existing.recipes||[],groceryList:draft.groceryList,inventory:draft.inventory,rules:{...(existing.rules||{}),...(draft.settings||{})},mealHistory:existing.mealHistory||[],catalog:existing.catalog||{driveFileId:"1dl5niCGaXh4jPwPD9drZcYKoa9u2b6fH",name:"Butler Walmart Master Catalog.xlsx",itemCount:160,mealPlanEligibleCount:96}}
 }
-async function saveMeals(show=true){
+let mealReviewSnapshot=null,mealReviewRequestId=0,mealReviewLocalFingerprint="";
+function mealReviewNotice(message){const el=document.getElementById("mealReviewStatus");if(el)el.textContent=message}
+function mealReviewActions(enabled){for(const id of ["mealUseSharedBtn","mealSaveReviewedBtn"]){const el=document.getElementById(id);if(el)el.disabled=!enabled}}
+function showMealReviewAction(error){const message=String(error&&error.message||error);if(/^(CONFLICT|UNKNOWN):/.test(message)){state.mealsNeedsReview=true;localStorage.setItem(storageKey()||LEGACY_KEY,JSON.stringify(state));const el=document.getElementById("mealReviewBtn");if(el)el.hidden=false}}
+function closeMealReview(){mealReviewRequestId++;mealReviewSnapshot=null;const panel=document.getElementById("mealReviewPanel");if(panel)panel.hidden=true;mealReviewActions(false)}
+function mealPlanForReview(shared){return shared.draft||shared.approved||shared}
+function mealReviewDate(date){const value=new Date(String(date)+"T12:00:00");return Number.isFinite(value.getTime())?value.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"}):String(date||"not selected")}
+function mealPlanReviewHtml(plan,title){
+  const days=Array.isArray(plan.days)?plan.days:[],groceries=Array.isArray(plan.groceryList)?plan.groceryList:[],inventory=Array.isArray(plan.inventory)?plan.inventory:[],settings=plan.settings||{};
+  const list=(items,format)=>items.length?"<ul>"+items.map(item=>"<li>"+esc(format(item))+"</li>").join("")+"</ul>":'<p class="hint">None listed</p>';
+  const meals=days.length?days.map(day=>{const recipe=day.recipe||{};return '<div class="item"><b>'+esc(day.date?mealReviewDate(day.date):"Meal")+' · '+esc(day.meal||"Not planned")+'</b><span>'+esc(day.prep||"No prep note")+'</span>'+(Array.isArray(recipe.ingredients)&&recipe.ingredients.length?list(recipe.ingredients,item=>String(item)):"")+(recipe.instructions?'<p>'+esc(recipe.instructions)+'</p>':"")+(recipe.notes?'<p>'+esc(recipe.notes)+'</p>':"")+(recipe.servings||recipe.time?'<p>'+esc([recipe.servings&&("Servings: "+recipe.servings),recipe.time&&("Time: "+recipe.time)].filter(Boolean).join(" · "))+'</p>':"")+'</div>'}).join(""):'<p class="hint">No meals listed</p>';
+  return '<div><h4>'+esc(title)+'</h4><p class="hint">Week of '+esc(mealReviewDate(plan.weekStart))+'</p>'+meals+'<h4>Groceries</h4>'+list(groceries,item=>(item.done?"✓ ":"")+(item.item||"")+(item.qty?" · "+item.qty:""))+'<h4>Inventory</h4>'+list(inventory,item=>(item.item||"")+(item.qty?" · "+item.qty:""))+'<h4>Settings</h4>'+list(Object.entries(settings),([key,value])=>key.replace(/([a-z])([A-Z])/g,"$1 $2").replace(/^./,letter=>letter.toUpperCase())+": "+(typeof value==="object"?JSON.stringify(value):String(value)))+'</div>';
+}
+function renderMealReview(){
+  if(!mealReviewSnapshot)return;
+  const comparison=document.getElementById("mealReviewComparison");
+  if(comparison)comparison.innerHTML=mealPlanReviewHtml(state.meals,"Your draft")+mealPlanReviewHtml(mealPlanForReview(mealReviewSnapshot),"Latest shared plan");
+  mealReviewLocalFingerprint=JSON.stringify(state.meals);
+}
+async function reviewSharedMeals(){
+  const requestId=++mealReviewRequestId,panel=document.getElementById("mealReviewPanel"),heading=document.getElementById("mealReviewTitle");
+  if(panel)panel.hidden=false;if(heading)heading.focus();
+  mealReviewSnapshot=null;mealReviewActions(false);mealReviewNotice("Loading the latest shared plan. Your local edits stay here.");
+  const comparison=document.getElementById("mealReviewComparison");if(comparison)comparison.innerHTML="";
+  try{
+    const r=await fetch("/api/meals?t="+Date.now(),{cache:"no-store"}),x=await r.json();
+    if(requestId!==mealReviewRequestId)return false;
+    if(!r.ok||!x.ok||!x.meals||typeof x.meals!=="object"||Array.isArray(x.meals)||!Number.isInteger(x.meals.version)||x.meals.version<1)throw new Error("The shared Meals plan could not be loaded.");
+    mealReviewSnapshot=JSON.parse(JSON.stringify(x.meals));renderMealReview();mealReviewActions(true);mealReviewNotice("Latest shared plan loaded. Nothing has been replaced or saved.");return true;
+  }catch(e){if(requestId===mealReviewRequestId){mealReviewSnapshot=null;mealReviewActions(false);mealReviewNotice("Could not load shared Meals. Your local edits are unchanged. Try refreshing the comparison.")}return false}
+}
+function useReviewedSharedMeals(){
+  if(!mealReviewSnapshot)return false;
+  if(!confirm("Replace the draft on this device with the shared plan? Your current local draft will be kept so you can restore it. Nothing will be saved to shared Meals."))return false;
+  state.mealsRecovery={savedAt:new Date().toISOString(),draft:JSON.parse(JSON.stringify(state.meals))};
+  mealsDurable=JSON.parse(JSON.stringify(mealReviewSnapshot));state.meals=JSON.parse(JSON.stringify(mealPlanForReview(mealsDurable)));delete state.meals._durable;
+  delete state.mealsNeedsReview;localStorage.setItem(storageKey()||LEGACY_KEY,JSON.stringify(state));renderMeals();closeMealReview();
+  const restore=document.getElementById("mealRestoreDraftBtn");if(restore)restore.hidden=false;toast("Shared plan loaded. Your earlier draft is kept on this device.");return true;
+}
+function restoreLocalMealDraft(){
+  if(!state.mealsRecovery||!state.mealsRecovery.draft)return false;
+  state.meals=JSON.parse(JSON.stringify(state.mealsRecovery.draft));state.meals.status="draft";state.mealsNeedsReview=true;localStorage.setItem(storageKey()||LEGACY_KEY,JSON.stringify(state));renderMeals();closeMealReview();
+  const review=document.getElementById("mealReviewBtn");if(review)review.hidden=false;toast("Earlier draft restored locally. Review shared Meals before saving.");return true;
+}
+async function saveReviewedMealDraft(){
+  if(!mealReviewSnapshot)return false;
+  if(JSON.stringify(state.meals)!==mealReviewLocalFingerprint){renderMealReview();mealReviewNotice("Your draft changed while you were comparing. Review it again, then choose Save my draft instead.");return false}
+  const previous=mealsDurable;mealsDurable=JSON.parse(JSON.stringify(mealReviewSnapshot));mealReviewActions(false);
+  const ok=await saveMeals(true,true);
+  if(ok)closeMealReview();
+  else{mealsDurable=previous;mealReviewSnapshot=null;mealReviewActions(false);mealReviewNotice("The save did not return a confirmed success. Your local draft is kept. Refresh the comparison before deciding what to do next.")}
+  return ok;
+}
+function mealSaveErrorMessage(error,action="save"){
+  const message=String(error&&error.message||error);
+  if(message.startsWith("CONFLICT:"))return "Shared Meals changed since you loaded them. Your edits are kept on this device. Compare with the latest shared plan before saving again.";
+  if(message.startsWith("UNKNOWN:"))return "The shared "+action+" could not be confirmed. Your edits are kept on this device. Check shared Meals before trying again.";
+  return (action==="approval"?"Week was not approved — ":"Not saved to shared Meals — ")+message;
+}
+async function postMealMutation(body){
+  let response,result;
+  try{response=await fetch("/api/meals",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});result=await response.json()}
+  catch(e){throw new Error("UNKNOWN: The shared Meals response could not be read; check shared Meals before retry.")}
+  if(!response.ok||!result||result.ok!==true){
+    if(response.status>=500||!result||typeof result!=="object"||!result.error)throw new Error("UNKNOWN: The shared Meals result could not be confirmed; check shared Meals before retry.");
+    throw new Error(String(result.error));
+  }
+  if(!result.meals||!Number.isInteger(result.meals.version)||result.meals.version<1||(body.expectedVersion!==undefined&&body.expectedVersion!==null&&result.meals.version!==body.expectedVersion+1))throw new Error("UNKNOWN: The shared Meals result could not be confirmed; check shared Meals before retry.");
+  return result.meals;
+}
+async function saveMeals(show=true,reviewed=false){
+  if(state.mealsNeedsReview&&!reviewed){const status=document.getElementById("mealSaveStatus");if(status)status.textContent="Your draft is kept. Review latest shared Meals before saving again.";if(show)toast("Review latest shared Meals before saving again");return false}
   ensureMealWeek();if(state.meals&&state.meals._durable)delete state.meals._durable;state.meals.updatedAt=new Date().toISOString();localStorage.setItem(storageKey()||LEGACY_KEY,JSON.stringify(state));const btn=document.getElementById("saveMealsBtn"),status=document.getElementById("mealSaveStatus");if(btn){btn.disabled=true;btn.textContent="Saving…"}if(status){status.textContent="Saving draft to Butler Household…";status.style.color="var(--muted)"}
-  try{const r=await fetch("/api/meals",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({operation:"save_draft",actor:"Mission Control App",meals:durableMealsPayload()})});const x=await r.json();if(!r.ok||!x.ok)throw new Error(x.error||("Save failed ("+r.status+")"));mealsDurable=x.meals;const when=new Date().toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"});if(status){status.textContent="Draft saved ✓ "+when;status.style.color="var(--good)"}if(btn)btn.textContent="Saved ✓";if(show)toast("Meal-plan draft saved to Butler Household");setTimeout(()=>{if(btn)btn.textContent="Save Draft"},1800);return true}catch(e){if(status){status.textContent="Not saved to shared Meals — "+String(e.message||e);status.style.color="var(--bad)"}if(btn)btn.textContent="Save Draft";if(show)toast("Shared Meals save failed");return false}finally{if(btn)btn.disabled=false}
+  try{mealsDurable=await postMealMutation({operation:"save_draft",meals:durableMealsPayload(),expectedVersion:mealsDurable&&mealsDurable.version});delete state.mealsNeedsReview;localStorage.setItem(storageKey()||LEGACY_KEY,JSON.stringify(state));const review=document.getElementById("mealReviewBtn");if(review)review.hidden=true;const when=new Date().toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"});if(status){status.textContent="Draft saved ✓ "+when;status.style.color="var(--good)"}if(btn)btn.textContent="Saved ✓";if(show)toast("Meal-plan draft saved to Butler Household");setTimeout(()=>{if(btn)btn.textContent="Save Draft"},1800);return true}catch(e){showMealReviewAction(e);if(status){status.textContent=mealSaveErrorMessage(e);status.style.color="var(--bad)"}if(btn)btn.textContent="Save Draft";if(show)toast(/^UNKNOWN:/.test(String(e.message||e))?"Shared save unconfirmed — review latest Meals":/^CONFLICT:/.test(String(e.message||e))?"Shared Meals changed — review the latest plan":"Shared Meals save failed");return false}finally{if(btn)btn.disabled=false}
 }
 async function approveMeals(){
   const ok=await saveMeals(false);if(!ok){toast("Cannot approve until the shared draft saves");return}
-  try{const r=await fetch("/api/meals",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({operation:"approve",meals:durableMealsPayload(),expectedVersion:mealsDurable&&mealsDurable.version})});const x=await r.json();if(!x.ok)throw new Error(x.error||"Approval failed");mealsDurable=x.meals;state.meals.status="approved";localStorage.setItem(storageKey()||LEGACY_KEY,JSON.stringify(state));renderMeals();const status=document.getElementById("mealSaveStatus");if(status){status.textContent="Week approved ✓ "+new Date().toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"});status.style.color="var(--good)"}toast("Week approved for Butler Household")}catch(e){toast("Week was not approved — "+String(e.message||e))}
+  try{mealsDurable=await postMealMutation({operation:"approve",meals:durableMealsPayload(),expectedVersion:mealsDurable&&mealsDurable.version});state.meals.status="approved";localStorage.setItem(storageKey()||LEGACY_KEY,JSON.stringify(state));renderMeals();const status=document.getElementById("mealSaveStatus");if(status){status.textContent="Week approved ✓ "+new Date().toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"});status.style.color="var(--good)"}toast("Week approved for Butler Household")}catch(e){showMealReviewAction(e);const message=mealSaveErrorMessage(e,"approval"),status=document.getElementById("mealSaveStatus");if(status){status.textContent=message;status.style.color="var(--bad)"}toast(message)}
 }
 async function planNextWeek(){
   ensureMealWeek();const btn=document.getElementById("planMealsBtn"),status=document.getElementById("mealSaveStatus");if(btn){btn.disabled=true;btn.textContent="Building…"}if(status){status.textContent="Building a real Butler Household draft…";status.style.color="var(--muted)"}
