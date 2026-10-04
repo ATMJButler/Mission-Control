@@ -1,0 +1,5 @@
+# Local Google OAuth credentials must never enter source control.
+.clasprc.json
+.clasprc.*.json
+node_modules
+apps-script-dist/

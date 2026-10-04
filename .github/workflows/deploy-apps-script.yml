@@ -22,10 +22,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Verify release source
+        env:
+          RELEASE_REF: ${{ github.ref }}
+        run: |
+          test "$RELEASE_REF" = "refs/heads/main"
+          MAIN_SHA="$(git ls-remote origin refs/heads/main | cut -f1)"
+          test -n "$MAIN_SHA"
+          test "$GITHUB_SHA" = "$MAIN_SHA"
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Install clasp
         run: npm install --global @google/clasp@3.4.1
@@ -35,6 +44,8 @@ jobs:
           CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
         run: |
           test -n "$CLASPRC_JSON"
+          node -e 'try { const value = JSON.parse(process.env.CLASPRC_JSON); if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(); } catch { console.error("CLASPRC_JSON must contain a JSON object; credential contents omitted."); process.exit(1); }'
+          umask 077
           printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
 
       - name: Stage Apps Script source
@@ -62,6 +73,18 @@ jobs:
           echo "number=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Preserve Web App deployment
+        env:
+          APPS_SCRIPT_VERSION: ${{ steps.version.outputs.number }}
         run: |
-          echo "Source pushed and immutable version ${{ steps.version.outputs.number }} created."
+          echo "Source pushed and immutable version $APPS_SCRIPT_VERSION created."
           echo "Production Web App deployment is intentionally NOT mutated by clasp until a WebAppConfig-preserving deployer is commissioned."
+          {
+            echo "## Apps Script release candidate"
+            echo "Source SHA: $GITHUB_SHA"
+            echo "Immutable version: $APPS_SCRIPT_VERSION"
+            echo "Production Web App promotion: pending manual selection on the existing deployment."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove runner credential
+        if: always()
+        run: rm -f "$HOME/.clasprc.json"
