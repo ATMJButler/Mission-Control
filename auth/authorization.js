@@ -5,6 +5,7 @@ export const ROLES = Object.freeze({
 });
 
 const POLICIES = Object.freeze({
+  diagnostics: Object.freeze({read: ["principal"]}),
   projects: Object.freeze({
     read: ["principal","secondary","extended"],
     update_project: ["principal","secondary"],

@@ -5,6 +5,9 @@
  */
 const SHEET_NAME = 'Projects';
 const MC_BUILD_ID = '2026-10-02-auth-hardening-v3';
+// Replaced only in staged release source; unstamped local/editor copies are unverified.
+const MC_SOURCE_SHA = 'unversioned';
+const MC_CANONICAL_SHA256 = 'unversioned';
 const HEADERS = [
 'id','name','area','status','priority','attention','owner','description','outcome',
 'doneDefinition','currentState','nextAction','waitingOn','waitingSince','followupDate',
@@ -20,6 +23,11 @@ function rejectUnknownFields_(body,allowed){const unknown=Object.keys(body||{}).
 function doPost(e){try{
   const body=JSON.parse((e&&e.postData&&e.postData.contents)||'{}');
   authorize_(body.token);
+  if(body.resource==="system_diagnostics"){
+    rejectUnknownFields_(body,["token","resource","operation","householdId","actor"]);
+    if(body.operation!=="read")throw new Error("DIAGNOSTICS_READ_ONLY");
+    return json_(readSystemDiagnostics_(body));
+  }
   if(body.resource==="household_invitation"){if(body.operation==="create"){rejectUnknownFields_(body,["token","resource","operation","actorUserId","householdId","role","tokenHash","expiresAt"]);return json_(createHouseholdInvitation_(String(body.actorUserId||""),String(body.householdId||""),String(body.role||""),String(body.tokenHash||""),String(body.expiresAt||"")))}if(body.operation==="claim"){rejectUnknownFields_(body,["token","resource","operation","identity","inviteToken"]);return json_(claimHouseholdInvitation_(body.identity||{},String(body.inviteToken||"")))}if(body.operation==="revoke"){rejectUnknownFields_(body,["token","resource","operation","actorUserId","invitationId"]);return json_(revokeHouseholdInvitation_(String(body.actorUserId||""),String(body.invitationId||"")))}throw new Error("Unsupported household invitation operation")}
   if(body.resource==="project_trusted_operation"){if(PropertiesService.getScriptProperties().getProperty("PROJECT_V1_TRUSTED_DISPATCH")!=="enabled")throw new Error("PROJECT_V1_TRUSTED_DISPATCH_DISABLED");rejectUnknownFields_(body,["token","resource","operationId","householdId","actor","operation","projectId","expectedVersion","patch"]);if(!body.operationId)throw new Error("operationId required");if(body.householdId!=="butler-household")throw new Error("Household not permitted");if(!body.actor)throw new Error("Actor required");const lock=LockService.getScriptLock();lock.waitLock(30000);try{const prior=projectOperationAuditRecord_(body.operationId);if(prior){if(!projectOperationFingerprintMatches_(prior,body))throw new Error("CONFLICT: operationId reused with different request");const status=String(prior.row[9]),saved=JSON.parse(String(prior.row[10]||"{}"));if(status==="SUCCESS")return json_(Object.assign({},saved,{replayed:true}));if(status==="FAILED")throw new Error(String(saved.error||status));throw new Error("UNKNOWN: prior Project operation outcome requires reconciliation")}const before=findProjectResource_(body.projectId),pv=before?Number(before.version||1):0;let result;try{result=trustedProjectOperation_(body);SpreadsheetApp.flush()}catch(err){const msg=String(err.message||err),definitive=/^(INVALID|CONFLICT|FORBIDDEN):/.test(msg);if(definitive){try{appendProjectOperationAudit_(body,"FAILED",{error:msg},pv,"","Trusted principal Project operation rejected before commit");SpreadsheetApp.flush()}catch(auditErr){console.error("Project failure audit write failed",auditErr)}throw err}throw new Error("UNKNOWN: Project mutation outcome uncertain; reconcile operationId and Project readback before retry. Cause="+msg)}try{appendProjectOperationAudit_(body,"SUCCESS",result,pv,result.newVersion,"Trusted principal Project operation committed");SpreadsheetApp.flush()}catch(auditErr){throw new Error("UNKNOWN: Project mutation committed but success audit persistence failed; reconcile operationId and Project readback before retry. Cause="+String(auditErr.message||auditErr))}return json_(result)}finally{try{SpreadsheetApp.flush()}catch(flushErr){console.error("Trusted Project cleanup flush failed",flushErr)}finally{lock.releaseLock()}}}
   if(body.resource==="projects"){if(body.operation!=="legacy_merge")throw new Error("Unsupported project operation");if(body.householdId!=="butler-household")throw new Error("Household not permitted");if(!Array.isArray(body.projects))throw new Error("projects array required");const merged=mergeProjects_(readProjects_(),body.projects);writeProjects_(merged);return json_({ok:true,count:merged.length,projects:merged,updatedAt:new Date().toISOString()})}
@@ -115,6 +123,111 @@ function projectOperationFingerprint_(body){const s=JSON.stringify({householdId:
 function appendProjectOperationAudit_(body,status,result,previousVersion,newVersion,notes){projectOperationAuditSheet_().appendRow([String(body.operationId),new Date().toISOString(),String(body.householdId||""),String(body.actor||""),String(body.operation||""),String(body.projectId||""),body.expectedVersion,previousVersion??"",newVersion??"",status,JSON.stringify(result||{}),"fingerprint="+projectOperationFingerprint_(body)+"; "+(notes||"")])}
 function projectOperationFingerprintMatches_(rec,body){const note=String(rec.row[11]||""),m=note.match(/fingerprint=([0-9a-f]{64})/);return !!m&&m[1]===projectOperationFingerprint_(body)}
 function trustedProjectOperation_(body){const op=String(body.operation||""),id=String(body.projectId||""),expected=body.expectedVersion,actor=String(body.actor||"mission-control-ui");if(!id)throw new Error("INVALID: projectId required");const before=findProjectResource_(id);if(!before)throw new Error("INVALID: Project resource not found");if(op==="update_project"){const next=updateTrustedProject_(id,body.patch||{},expected,actor,String(body.householdId||""));return{ok:true,project:next,previousVersion:Number(before.version||1),newVersion:Number(next.version||1)}}const allowed=["activate_project","archive_project","restore_project","soft_delete_project","complete_project"];if(!allowed.includes(op))throw new Error("INVALID: Unsupported trusted project operation");let target;if(op==="activate_project")target="active";else if(op==="archive_project")target="archived";else if(op==="complete_project")target="completed";else if(op==="soft_delete_project")target="deleted";else target=before.lifecycle==="deleted"?"archived":"active";const next=transitionProjectLifecycle_(id,target,expected,actor,String(body.householdId||""));return{ok:true,project:next,previousVersion:Number(before.version||1),newVersion:Number(next.version||1)}}
+// Diagnostics deliberately avoids helpers that create sheets, repair headers,
+// initialize resources or append audit records. No Google write API is used here.
+function diagnosticsTable_(name, headers) {
+  const sh = SpreadsheetApp.getActive().getSheetByName(name);
+  if (!sh) return {present: false, headersValid: false, rows: []};
+  const actual = sh.getRange(1, 1, 1, headers.length).getValues()[0].map(String);
+  const headersValid = actual.join("|") === headers.join("|");
+  const rows = headersValid && sh.getLastRow() > 1
+    ? sh.getRange(2, 1, sh.getLastRow() - 1, headers.length).getValues().filter(r => r[0]) : [];
+  return {present: true, headersValid, rows};
+}
+function diagnosticsFingerprint_(rows) {
+  const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, JSON.stringify(rows), Utilities.Charset.UTF_8);
+  return bytes.map(b => ((b + 256) % 256).toString(16).padStart(2, "0")).join("");
+}
+function diagnosticsSummary_(table, rows) {
+  return {present: table.present, headersValid: table.headersValid,
+    recordCount: table.headersValid ? rows.length : null,
+    fingerprint: table.headersValid ? diagnosticsFingerprint_(rows) : null};
+}
+function readSystemDiagnostics_(body) {
+  if (typeof body.actor !== "string" || !body.actor || typeof body.householdId !== "string" || !body.householdId)
+    throw new Error("DIAGNOSTICS_PRINCIPAL_REQUIRED");
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const users = diagnosticsTable_("Users", ["userId","status","displayName","identityProvider","providerSubject","email","createdAt","updatedAt","notes"]);
+    const households = diagnosticsTable_("Households", ["householdId","status","name","createdAt","updatedAt","notes"]);
+    const members = diagnosticsTable_("Household Memberships", ["membershipId","householdId","userId","role","status","createdAt","updatedAt","notes"]);
+    if (![users, households, members].every(t => t.headersValid)) throw new Error("DIAGNOSTICS_DIRECTORY_INVALID");
+    const u = users.rows.filter(r => String(r[0]) === body.actor && r[1] === "active");
+    const h = households.rows.filter(r => String(r[0]) === body.householdId && r[1] === "active");
+    const m = members.rows.filter(r => String(r[1]) === body.householdId && String(r[2]) === body.actor && r[4] === "active");
+    if (u.length !== 1 || h.length !== 1 || m.length !== 1 || m[0][3] !== "principal")
+      throw new Error("DIAGNOSTICS_PRINCIPAL_REQUIRED");
+
+    const resourceHeaders = ["id","householdId","schemaVersion","version","lifecycle","operatingState","name","area","scope","createdAt","createdBy","updatedAt","updatedBy","legacyProjectId","resourceJson","notes"];
+    const resources = diagnosticsTable_("Project Resources", resourceHeaders);
+    const resourceRows = resources.rows.filter(r => String(r[1]) === body.householdId);
+    const ids = new Set(resourceRows.map(r => String(r[0]))), globalIdCounts = new Map();
+    resources.rows.forEach(r => globalIdCounts.set(String(r[0]), (globalIdCounts.get(String(r[0])) || 0) + 1));
+    // Check global collisions of this household's IDs without returning foreign IDs/content.
+    const duplicateIdCount = [...ids].filter(id => globalIdCounts.get(id) > 1).length;
+    const projectResources = Object.assign(diagnosticsSummary_(resources, resourceRows), {
+      v1OnlyCount: resources.headersValid ? resourceRows.filter(r => !r[13]).length : null,
+      duplicateIdCount: resources.headersValid ? duplicateIdCount : null
+    });
+    // Legacy Projects has no household column and is currently bound to Butler only.
+    // Do not present another household's legacy rows as a tenant-scoped resource.
+    const legacyApplicable = body.householdId === "butler-household";
+    const projects = legacyApplicable ? diagnosticsTable_("Projects", HEADERS) : {present:false,headersValid:false,rows:[]};
+    const legacyProjects = Object.assign(diagnosticsSummary_(projects, projects.rows), {applicable: legacyApplicable});
+    const audit = diagnosticsTable_("Project Operation Audit", ["operationId","timestamp","householdId","actorUserId","operation","projectId","expectedVersion","previousVersion","newVersion","status","result","notes"]);
+    const auditRows = audit.rows.filter(r => String(r[2]) === body.householdId);
+    // Audit notes/results/actors are deliberately excluded even from fingerprints.
+    const safeAuditRows = auditRows.map(r => [r[0],r[1],r[4],r[5],r[6],r[7],r[8],r[9]]);
+    const projectOperationAudit = diagnosticsSummary_(audit, safeAuditRows);
+    const fixtureId = "commission-project-gateway-001";
+    const fixtureRows = resourceRows.filter(r => String(r[0]) === fixtureId);
+    const globallyUnique = resources.rows.filter(r => String(r[0]) === fixtureId).length === 1;
+    let fixture = {present: fixtureRows.length > 0, unique: fixtureRows.length === 1 && globallyUnique,
+      version: null, lifecycle: null, legacyLinked: null, flags: null, lifecycleCoherent: null};
+    if (fixture.unique) {
+      const r = fixtureRows[0];
+      fixture.version = Number.isSafeInteger(Number(r[3])) && Number(r[3]) > 0 ? Number(r[3]) : null;
+      fixture.lifecycle = ["draft","active","completed","archived","deleted"].includes(String(r[4])) ? String(r[4]) : null;
+      fixture.legacyLinked = !!r[13];
+      try {
+        const raw = JSON.parse(String(r[14] || "{}"));
+        fixture.flags = {completed: raw.completed === true, archived: raw.archived === true,
+          deleted: raw.deleted === true, deletedAtPresent: !!raw.deletedAt,
+          reviewStatus: ["pending","approved","rejected"].includes(raw.reviewStatus) ? raw.reviewStatus : null};
+        fixture.lifecycleCoherent = ["completed","archived","deleted"].every(k => raw[k] === undefined || typeof raw[k] === "boolean") && raw.lifecycle === fixture.lifecycle &&
+          fixture.flags.completed === (fixture.lifecycle === "completed") &&
+          fixture.flags.archived === (fixture.lifecycle === "archived") &&
+          fixture.flags.deleted === (fixture.lifecycle === "deleted") &&
+          fixture.flags.deletedAtPresent === (fixture.lifecycle === "deleted");
+      } catch (_e) { /* malformed fixture is reported as unverified */ }
+    }
+    const recentFixtureOperations = auditRows.filter(r => String(r[5]) === fixtureId).slice(-10).map(r => ({
+      operationId: /^ui_[0-9a-f-]{36}$/i.test(String(r[0])) ? String(r[0]) : null,
+      status: ["PENDING","SUCCESS","FAILED","UNKNOWN"].includes(String(r[9])) ? String(r[9]) : null,
+      expectedVersion: Number.isSafeInteger(Number(r[6])) && String(r[6]) !== "" ? Number(r[6]) : null,
+      previousVersion: Number.isSafeInteger(Number(r[7])) && String(r[7]) !== "" ? Number(r[7]) : null,
+      newVersion: Number.isSafeInteger(Number(r[8])) && String(r[8]) !== "" ? Number(r[8]) : null
+    }));
+    const householdMembers = members.rows.filter(r => String(r[1]) === body.householdId);
+    const householdUserIds = new Set(householdMembers.map(r => String(r[2])));
+    const invitations = diagnosticsTable_("Household Invitations", invitationHeaders_());
+    const authAudit = diagnosticsTable_("Auth Audit", ["eventId","timestamp","eventType","userId","householdId","role","resource","operation","result","notes"]);
+    return {ok: true, diagnostics: {
+      schemaVersion: 1, readOnly: true, checkedAt: new Date().toISOString(),
+      source: {gitSha: MC_SOURCE_SHA, canonicalSha256: MC_CANONICAL_SHA256, legacyBuildId: MC_BUILD_ID, immutableVersion: null},
+      gates: {projectV1TrustedDispatch: PropertiesService.getScriptProperties().getProperty("PROJECT_V1_TRUSTED_DISPATCH") === "enabled"},
+      snapshot: {coordination: "shared-script-lock", legacyWritesSerialized: false},
+      sheets: {legacyProjects, projectResources, projectOperationAudit}, fixture, recentFixtureOperations,
+      identity: {activeUsers: users.rows.filter(r => householdUserIds.has(String(r[0])) && r[1] === "active").length,
+        activeMemberships: householdMembers.filter(r => r[4] === "active").length,
+        invitationsPresent: invitations.present, invitationsHeadersValid: invitations.headersValid,
+        invitationCount: invitations.headersValid ? invitations.rows.filter(r => String(r[1]) === body.householdId).length : null,
+        authAuditPresent: authAudit.present, authAuditHeadersValid: authAudit.headersValid,
+        authAuditCount: authAudit.headersValid ? authAudit.rows.filter(r => String(r[4]) === body.householdId).length : null}
+    }};
+  } finally { lock.releaseLock(); }
+}
 function identitySheet_(name,headers){const ss=SpreadsheetApp.getActive(),sh=ss.getSheetByName(name);if(!sh)throw new Error("Identity directory sheet missing: "+name);const first=sh.getRange(1,1,1,headers.length).getValues()[0].map(String);if(first.join("|")!==headers.join("|"))throw new Error("Identity directory headers invalid: "+name);return sh}
 function identityRows_(name,headers){const sh=identitySheet_(name,headers);if(sh.getLastRow()<2)return[];return sh.getRange(2,1,sh.getLastRow()-1,headers.length).getValues().filter(r=>r[0]).map(r=>Object.fromEntries(headers.map((h,i)=>[h,String(r[i]??"")])))}
 function resolveIdentityDirectory_(provider,subject,householdId){const uh=["userId","status","displayName","identityProvider","providerSubject","email","createdAt","updatedAt","notes"],hh=["householdId","status","name","createdAt","updatedAt","notes"],mh=["membershipId","householdId","userId","role","status","createdAt","updatedAt","notes"],users=identityRows_("Users",uh).filter(x=>x.status==="active"&&x.identityProvider===provider&&x.providerSubject===subject);if(users.length!==1)return{ok:false,reason:users.length?"IDENTITY_BINDING_NOT_UNIQUE":"USER_NOT_PROVISIONED"};const user=users[0],households=identityRows_("Households",hh).filter(x=>x.status==="active"&&x.householdId===householdId);if(households.length!==1)return{ok:false,reason:"HOUSEHOLD_INACTIVE_OR_MISSING"};const household=households[0],memberships=identityRows_("Household Memberships",mh).filter(x=>x.status==="active"&&x.householdId===householdId&&x.userId===user.userId);if(memberships.length!==1)return{ok:false,reason:memberships.length?"MEMBERSHIP_NOT_UNIQUE":"MEMBERSHIP_INACTIVE_OR_MISSING"};return{ok:true,user,household,membership:memberships[0]}}

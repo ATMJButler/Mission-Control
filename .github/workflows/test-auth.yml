@@ -13,6 +13,8 @@ on:
       - "app-v5.html"
       - ".github/workflows/test-auth.yml"
       - ".github/workflows/deploy-apps-script.yml"
+      - "scripts/stage-apps-script.mjs"
+      - "diagnostics*"
   pull_request:
     paths:
       - "auth/**"
@@ -24,6 +26,8 @@ on:
       - "app-v5.html"
       - ".github/workflows/test-auth.yml"
       - ".github/workflows/deploy-apps-script.yml"
+      - "scripts/stage-apps-script.mjs"
+      - "diagnostics*"
 
 permissions:
   contents: read
