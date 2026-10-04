@@ -37,6 +37,10 @@
         element("mcWorkspaceGate").style.display="none";element("mcWorkspaceJoin").hidden=true;
         const frame=element("core");if(frame.getAttribute("src")==="about:blank")frame.src=frame.dataset.src;
         const preview=element("mcJuliePreview");if(preview)preview.hidden=false;
+      }else if(workspace?.role==="secondary"&&workspace.principalWorkspace===false&&workspace.memberSetupReady===true){
+        element("mcWorkspaceGate").style.display="none";
+        const frame=element("core");if(frame.getAttribute("src")!=="/member-setup.html")frame.src="/member-setup.html";
+        const preview=element("mcJuliePreview");if(preview)preview.hidden=true;
       }else if(["secondary","extended"].includes(workspace?.role)&&workspace.principalWorkspace===false){
         hold("Your household membership is verified. Member setup is still being prepared; this account cannot open the principal workspace.",{retry:true});
       }else hold("Workspace response could not be verified. Try again.",{retry:true});

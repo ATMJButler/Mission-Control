@@ -23,6 +23,7 @@ function rejectUnknownFields_(body,allowed){const unknown=Object.keys(body||{}).
 function doPost(e){try{
   const body=JSON.parse((e&&e.postData&&e.postData.contents)||'{}');
   authorize_(body.token);
+  if(body.resource==="member_setup")return json_(memberSetup_(body));
   if(body.resource==="system_diagnostics"){
     rejectUnknownFields_(body,["token","resource","operation","householdId","actor"]);
     if(body.operation!=="read")throw new Error("DIAGNOSTICS_READ_ONLY");
@@ -253,3 +254,64 @@ function ensureHeaders_(sh){const current=sh.getRange(1,1,1,Math.max(sh.getLastC
 function headerMap_(sh){const headers=sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0].map(String),map={};headers.forEach((h,i)=>map[h]=i+1);return map}
 function getSheet_(){const sh=SpreadsheetApp.getActive().getSheetByName(SHEET_NAME);if(!sh)throw new Error('Projects sheet missing.');return sh}
 function json_(obj){if(obj&&typeof obj==="object"&&!Array.isArray(obj))obj.buildId=MC_BUILD_ID;return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON)}
+
+// Member preferences never grant household or provider authority.
+const MEMBER_SETUP_HEADERS = ['userId','householdId','schemaVersion','version','preferencesJson','status','updatedAt','updatedBy'];
+function defaultMemberSetup_(){return{step:0,startView:'schedule',timeZone:'America/Chicago',calendarProviders:[],emailProviders:[],sharingDefault:'private'}}
+function validateMemberSetup_(value){
+  const keys=['step','startView','timeZone','calendarProviders','emailProviders','sharingDefault'];
+  if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).length!==keys.length||Object.keys(value).some(key=>!keys.includes(key)))return false;
+  if(!Number.isInteger(value.step)||value.step<0||value.step>6||!['schedule','budget','meals','family'].includes(value.startView)||!['America/Chicago','America/New_York','America/Denver','America/Los_Angeles','America/Phoenix','Pacific/Honolulu','America/Anchorage','UTC'].includes(value.timeZone)||!['private','busy'].includes(value.sharingDefault))return false;
+  return ['calendarProviders','emailProviders'].every(key=>Array.isArray(value[key])&&value[key].length<=2&&value[key].every(item=>['google','microsoft'].includes(item))&&new Set(value[key]).size===value[key].length);
+}
+function memberSetupAuthority_(body){
+  if(typeof body.actor!=='string'||!body.actor||typeof body.householdId!=='string'||!body.householdId)throw new Error('MEMBER_SETUP_FORBIDDEN');
+  const users=diagnosticsTable_('Users',['userId','status','displayName','identityProvider','providerSubject','email','createdAt','updatedAt','notes']);
+  const households=diagnosticsTable_('Households',['householdId','status','name','createdAt','updatedAt','notes']);
+  const members=diagnosticsTable_('Household Memberships',['membershipId','householdId','userId','role','status','createdAt','updatedAt','notes']);
+  if(![users,households,members].every(table=>table.headersValid))throw new Error('MEMBER_SETUP_FORBIDDEN');
+  // Duplicate directory keys fail closed even if one duplicate is inactive.
+  const u=users.rows.filter(row=>String(row[0])===body.actor),h=households.rows.filter(row=>String(row[0])===body.householdId),m=members.rows.filter(row=>String(row[1])===body.householdId&&String(row[2])===body.actor);
+  if(u.length!==1||h.length!==1||m.length!==1||u[0][1]!=='active'||h[0][1]!=='active'||m[0][4]!=='active'||!['principal','secondary'].includes(m[0][3]))throw new Error('MEMBER_SETUP_FORBIDDEN');
+}
+function memberSetupRecord_(body){
+  const sheet=SpreadsheetApp.getActive().getSheetByName('Member Setup');
+  if(!sheet)return{sheet:null,record:null};
+  const actual=sheet.getRange(1,1,1,MEMBER_SETUP_HEADERS.length).getValues()[0].map(String);
+  if(actual.join('|')!==MEMBER_SETUP_HEADERS.join('|'))throw new Error('MEMBER_SETUP_SCHEMA_INVALID');
+  const rows=sheet.getLastRow()>1?sheet.getRange(2,1,sheet.getLastRow()-1,MEMBER_SETUP_HEADERS.length).getValues():[];
+  const found=[];
+  rows.forEach((row,index)=>{if(String(row[0])===body.actor&&String(row[1])===body.householdId)found.push({sheetRow:index+2,row:row})});
+  if(found.length>1)throw new Error('MEMBER_SETUP_SCHEMA_INVALID');
+  if(!found.length)return{sheet:sheet,record:null};
+  const rec=found[0];let preferences;
+  try{preferences=JSON.parse(String(rec.row[4]))}catch(_e){throw new Error('MEMBER_SETUP_SCHEMA_INVALID')}
+  const version=Number(rec.row[3]);
+  if(Number(rec.row[2])!==1||!Number.isSafeInteger(version)||version<1||!validateMemberSetup_(preferences))throw new Error('MEMBER_SETUP_SCHEMA_INVALID');
+  const status=preferences.step===6?'preferences_saved':'in_progress';
+  if(rec.row[5]!==status)throw new Error('MEMBER_SETUP_SCHEMA_INVALID');
+  rec.profile={version:version,preferences:preferences,status:status};return{sheet:sheet,record:rec};
+}
+function memberSetup_(body){
+  if(PropertiesService.getScriptProperties().getProperty('MEMBER_SETUP')!=='enabled')throw new Error('MEMBER_SETUP_DISABLED');
+  const saving=body.operation==='save';
+  rejectUnknownFields_(body,saving?['token','resource','operation','householdId','actor','expectedVersion','preferences']:['token','resource','operation','householdId','actor']);
+  if(!['read','save'].includes(body.operation)||(saving&&(!Number.isSafeInteger(body.expectedVersion)||body.expectedVersion<0||body.expectedVersion>=Number.MAX_SAFE_INTEGER||!validateMemberSetup_(body.preferences))))throw new Error('MEMBER_SETUP_INVALID');
+  const lock=LockService.getScriptLock();lock.waitLock(30000);let writing=false;
+  try{
+    memberSetupAuthority_(body);
+    const state=memberSetupRecord_(body);
+    const profile=state.record?state.record.profile:{version:0,preferences:defaultMemberSetup_(),status:'not_started'};
+    if(!saving)return{ok:true,profile:profile};
+    if(profile.version!==body.expectedVersion)throw new Error('MEMBER_SETUP_CONFLICT');
+    const next={version:profile.version+1,preferences:body.preferences,status:body.preferences.step===6?'preferences_saved':'in_progress'};
+    // After this point any Google error is an uncertain write, not a failure.
+    writing=true;
+    let sheet=state.sheet;
+    if(!sheet){sheet=SpreadsheetApp.getActive().insertSheet('Member Setup');sheet.getRange(1,1,1,MEMBER_SETUP_HEADERS.length).setValues([MEMBER_SETUP_HEADERS])}
+    const sheetRow=state.record?state.record.sheetRow:Math.max(sheet.getLastRow()+1,2);
+    sheet.getRange(sheetRow,1,1,MEMBER_SETUP_HEADERS.length).setValues([[body.actor,body.householdId,1,next.version,JSON.stringify(next.preferences),next.status,new Date().toISOString(),body.actor]]);
+    SpreadsheetApp.flush();return{ok:true,profile:next};
+  }catch(error){if(writing)throw new Error('MEMBER_SETUP_OUTCOME_UNKNOWN');throw error}
+  finally{try{if(writing)SpreadsheetApp.flush()}catch(_e){console.error('Member setup cleanup flush failed')}finally{lock.releaseLock()}}
+}

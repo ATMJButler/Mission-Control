@@ -23,7 +23,7 @@ export default async function handler(req,res){
     const ctx=await resolveAccessContext(identity,householdId);
     const auth=authorize({...ctx,resource:"identity",operation:"read_self"});
     if(!auth.ok)return res.status(403).json({ok:false,code:"WORKSPACE_FORBIDDEN"});
-    return res.status(200).json({ok:true,workspace:{role:auth.role,principalWorkspace:auth.role==="principal",memberSetupReady:false}});
+    return res.status(200).json({ok:true,workspace:{role:auth.role,principalWorkspace:auth.role==="principal",memberSetupReady:auth.role==="secondary"&&process.env.MC_MEMBER_SETUP==="enabled"}});
   }catch(error){
     const allowed=new Set(["UNAUTHENTICATED","USER_NOT_PROVISIONED","IDENTITY_BINDING_NOT_UNIQUE","HOUSEHOLD_INACTIVE_OR_MISSING","MEMBERSHIP_INACTIVE_OR_MISSING","MEMBERSHIP_NOT_UNIQUE","ORIGIN_FORBIDDEN","CROSS_SITE_FORBIDDEN"]);
     return res.status([401,403,409,502,503].includes(error?.statusCode)?error.statusCode:503).json({ok:false,code:allowed.has(error?.code)?error.code:"WORKSPACE_UNAVAILABLE"});
