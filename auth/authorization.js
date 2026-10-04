@@ -5,6 +5,7 @@ export const ROLES = Object.freeze({
 });
 
 const POLICIES = Object.freeze({
+  member_workspace: Object.freeze({read: ["principal","secondary"]}),
   member_setup: Object.freeze({read: ["principal","secondary"], save: ["principal","secondary"]}),
   diagnostics: Object.freeze({read: ["principal"]}),
   projects: Object.freeze({
