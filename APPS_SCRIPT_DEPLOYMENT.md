@@ -19,9 +19,23 @@ Release flow:
 3. For connector-authored backend commits, manually dispatch **Deploy Apps Script** from `main`. For ordinary GitHub pushes, verify that the qualifying push actually started the workflow rather than assuming it did.
 4. Workflow pushes source and creates an immutable Apps Script version. It intentionally does **not** mutate the production Web App deployment.
 5. In Apps Script → Deploy → Manage deployments, edit the existing **Mission Control API** Web App and promote it to the newly created version while preserving Execute as Me / Anyone and the same deployment URL.
-6. Verify `/exec` returns JSON with the expected `buildId`, then verify Mission Control behavior/readback.
+6. Record the workflow source SHA and immutable version from the Actions run summary. Verify the selected version in Manage deployments and that `/exec` returns application/json, then verify Mission Control behavior/readback. The current `MC_BUILD_ID` is stale and must not be used as definitive source/version evidence.
 
 Never commit `.clasprc.json`, OAuth refresh tokens, or private Mission Control sync tokens.
+
+## Recover an expired Google credential
+
+The October 4 release failed at **Push source** and skipped immutable version creation. The handoff reports `invalid_grant` / `invalid_rapt`; confirm that error in the failed step's GitHub Actions log before treating reauthentication as the established cause. A Google account session policy may require another interactive sign-in. Retrying the same expired credential will not repair it.
+
+John must perform the account sign-in on a trusted local computer; do not send credential JSON to an agent or paste it into chat.
+
+1. Install Node.js 24 if needed. From a temporary directory outside any repository, run `npx --yes @google/clasp@3.4.1 login`. Authenticate as the existing Google account that owns/maintains Mission Control's Apps Script. If clasp reuses an expired login, run `npx --yes @google/clasp@3.4.1 logout` first, then login again.
+2. Locate the newly generated `.clasprc.json` in your home directory. Keep the complete JSON private. This is a Google OAuth credential, separate from Drive access in ChatGPT.
+3. Open GitHub → ATMJButler/Mission-Control → Settings → Secrets and variables → Actions. Update the existing repository secret **CLASPRC_JSON** with the complete new file contents. Never commit the file. As an alternative, GitHub CLI can read the file through standard input: `gh secret set CLASPRC_JSON --repo ATMJButler/Mission-Control < /absolute/path/to/.clasprc.json`.
+4. Tell Codex the secret has been updated, without sharing its value. Codex can dispatch **Deploy Apps Script** on the then-current `main` and verify success. Do not rerun an old release if `main` has advanced; the workflow verifies its source SHA against current main before using the Google credential.
+5. After source push and immutable version creation succeed, manually promote that exact version on the existing Web App as described above. Neither credential replacement nor source versioning promotes production automatically.
+
+If login succeeds but push still fails, inspect the new error before further retries. Verify account access, Apps Script API enablement, and any Google Workspace reauthentication policy; do not weaken account security to keep CI alive.
 
 
 Runtime secrets:

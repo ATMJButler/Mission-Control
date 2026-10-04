@@ -12,6 +12,7 @@ on:
       - "google_apps_script_Code.gs"
       - "app-v5.html"
       - ".github/workflows/test-auth.yml"
+      - ".github/workflows/deploy-apps-script.yml"
   pull_request:
     paths:
       - "auth/**"
@@ -22,6 +23,7 @@ on:
       - "google_apps_script_Code.gs"
       - "app-v5.html"
       - ".github/workflows/test-auth.yml"
+      - ".github/workflows/deploy-apps-script.yml"
 
 permissions:
   contents: read
