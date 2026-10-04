@@ -6,11 +6,11 @@ import {authorize} from "./authorization.js";
 import {requireMissionControlOrigin} from "./origin.js";
 import {buildLegacyProjectEnvelope} from "./legacy-sync-envelope.js";
 
-function route(t,path,{role="principal",signedIn=true}={}){
+function route(t,path,{role="principal",signedIn=true,setupEnabled=false}={}){
   const previous=process.env.MC_AUTHORIZED_PARTIES;process.env.MC_AUTHORIZED_PARTIES="https://offline.invalid";
   t.after(()=>{if(previous===undefined)delete process.env.MC_AUTHORIZED_PARTIES;else process.env.MC_AUTHORIZED_PARTIES=previous;});
   const calls=[];let status="active";
-  const context=vm.createContext({Set,process:{env:{MC_SYNC_URL:"https://offline.invalid/exec",MC_SYNC_TOKEN:"offline-secret",MC_DEFAULT_HOUSEHOLD_ID:"h1"}},
+  const context=vm.createContext({Set,process:{env:{MC_SYNC_URL:"https://offline.invalid/exec",MC_SYNC_TOKEN:"offline-secret",MC_DEFAULT_HOUSEHOLD_ID:"h1",MC_MEMBER_SETUP:setupEnabled?"enabled":""}},
     installClerkIdentityAdapter(){},installUpstreamDirectoryAdapter(){},requireMissionControlOrigin,authorize,buildLegacyProjectEnvelope,
     requireVerifiedIdentity:async()=>{if(!signedIn)throw Object.assign(new Error("private"),{statusCode:401,code:"UNAUTHENTICATED"});return{provider:"offline",subject:"never-output"};},
     resolveAccessContext:async(_identity,householdId)=>({user:{userId:"u1",status:"active",providerSubject:"never-output",email:"never-output"},
@@ -106,4 +106,11 @@ test("service worker bypasses authenticated APIs and cross-origin requests",()=>
   vm.runInContext(fs.readFileSync(new URL("../sw.js",import.meta.url),"utf8"),context);
   for(const url of ["https://offline.invalid/api/sync","https://offline.invalid/api/v1/workspace","https://other.invalid/private"]){let intercepted=false;handlers.fetch({request:{method:"GET",url},respondWith(){intercepted=true}});assert.equal(intercepted,false);}
   assert.deepEqual(cacheCalls,[]);
+});
+
+test("setup gate routes only secondary members while principal and extended decisions stay unchanged",async t=>{
+  for(const role of ["principal","secondary","extended"]){const f=route(t,"../api/v1/workspace.js",{role,setupEnabled:true});const r=await f.request();assert.equal(r.result.workspace.memberSetupReady,role==="secondary");assert.equal(r.result.workspace.principalWorkspace,role==="principal");}
+});
+test("gated secondary browser opens isolated setup instead of legacy principal records",async()=>{
+ const f=browser({upstream:async()=>new Response(JSON.stringify({ok:true,workspace:{role:"secondary",principalWorkspace:false,memberSetupReady:true}}))});f.authenticate();await f.settle();assert.equal(f.elements.core.src,"/member-setup.html");assert.equal(f.elements.mcJuliePreview.hidden,true);assert.equal(f.elements.mcWorkspaceGate.style.display,"none");
 });
