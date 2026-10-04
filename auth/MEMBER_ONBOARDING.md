@@ -12,9 +12,13 @@ Routing uses an origin-checked POST read so older GET-caching service workers ca
 
 This is source/offline evidence until real secondary commissioning occurs. It does not prove secondary privacy across every resource, existing browser copies, external shared links or connected providers.
 
-## Scope decision pending
+## Approved initial scope
 
-John must choose whether Julie initially receives shared Budget/Meals/explicitly shared family items only, or also household account balances/debt details. Do not infer this choice from hidden tabs or publish raw financeData while the decision is pending. Do not infer shared family scope from a Project name, area or the existing John agenda snapshot.
+John selected shared Budget, Meals and explicitly shared family items only. Account balances, debt details, transaction descriptions and private work are excluded. Do not infer shared family scope from a Project name, area or the existing John agenda snapshot.
+
+`auth/member-projection.js` defines a tested, allowlisted output contract for future member reads: budget category aggregates (unavailable reconciliation remains unknown), approved meal days and grocery items, and active Project Resources with exact household and `household:shared` scope. Duplicate resource IDs in the selected household fail closed. This module is not an authorization layer: the API and private backend must independently verify active membership and household before invoking it. Legacy finance snapshots must never be treated as belonging to arbitrary households; the future reader must establish the Butler source ownership and reject ambiguous snapshots.
+
+The projection is not yet connected to a public member API or dashboard. No production sharing, gate activation, data mutation or Apps Script promotion is part of this change. Field projection tests are offline evidence, not secondary runtime acceptance.
 
 ## Remaining implementation
 
