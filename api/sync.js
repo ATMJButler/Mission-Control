@@ -20,6 +20,7 @@ export default async function handler(req,res){
       const ctx=await resolveAccessContext(identity,"butler-household");
       const auth=authorize({user:ctx.user,household:ctx.household,membership:ctx.membership,resource:"projects",operation:"read"});
       if(!auth.ok)return res.status(403).json({ok:false,error:"Forbidden",reason:auth.reason});
+      if(ctx.membership.role!=="principal")return res.status(403).json({ok:false,error:"Legacy workspace is principal-only",code:"LEGACY_PRINCIPAL_REQUIRED"});
       const sep=upstream.includes("?")?"&":"?";
       const r=await fetch(upstream+sep+"token="+encodeURIComponent(token),{cache:"no-store"});
       const body=await r.text();
@@ -33,6 +34,7 @@ export default async function handler(req,res){
       const ctx=await resolveAccessContext(identity,"butler-household");
       const auth=authorize({user:ctx.user,household:ctx.household,membership:ctx.membership,resource:"projects",operation:"update_project"});
       if(!auth.ok)return res.status(403).json({ok:false,error:"Forbidden",reason:auth.reason});
+      if(ctx.membership.role!=="principal")return res.status(403).json({ok:false,error:"Legacy workspace is principal-only",code:"LEGACY_PRINCIPAL_REQUIRED"});
       const incoming=typeof req.body==="string"?JSON.parse(req.body||"{}"):(req.body||{});
       const built=buildLegacyProjectEnvelope({incoming,token,userId:ctx.user.userId,householdId:ctx.household.householdId});
       if(!built.ok)return res.status(built.status).json({ok:false,error:built.error,fields:built.fields});

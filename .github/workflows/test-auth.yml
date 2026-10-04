@@ -16,6 +16,9 @@ on:
       - ".github/workflows/deploy-apps-script.yml"
       - "scripts/stage-apps-script.mjs"
       - "diagnostics*"
+      - "workspace-ui.js"
+      - "auth-ui.js"
+      - "sw.js"
   pull_request:
     paths:
       - "auth/**"
@@ -30,6 +33,9 @@ on:
       - ".github/workflows/deploy-apps-script.yml"
       - "scripts/stage-apps-script.mjs"
       - "diagnostics*"
+      - "workspace-ui.js"
+      - "auth-ui.js"
+      - "sw.js"
 
 permissions:
   contents: read
