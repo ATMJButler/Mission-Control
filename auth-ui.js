@@ -27,6 +27,7 @@ async function bootMissionControlAuth(){
       }
       const gate=document.getElementById("mcAuthGate");if(gate)gate.style.display="flex";
       const core=document.getElementById("core");if(core)core.src="about:blank";
+      window.dispatchEvent(new CustomEvent("mc-signed-out"));
       const signOut=document.getElementById("mcSignOut");if(signOut)signOut.remove();
       mount.innerHTML="";
       window.Clerk.mountSignIn(mount,{});
