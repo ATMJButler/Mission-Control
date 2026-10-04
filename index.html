@@ -128,7 +128,7 @@ if(linkedProject){
   if(typeof log==='function')log('agenda_action_'+status,linkedProject.id,String(agendaItem.title||'Agenda action')+' → '+status);
 }
 p.agendaData=JSON.stringify(snap);stampProject(p,'Mission Control — Agenda');localStorage.setItem(KEY,JSON.stringify(state));const synced=await pushProjects(false);if(synced!==false){await pullProjects(false);const checkProject=state.projects.find(x=>x&&x.agendaData),checkSnap=checkProject?JSON.parse(checkProject.agendaData):null,checkItems=checkSnap&&Array.isArray(checkSnap.items)?checkSnap.items:[],checkItem=checkItems.find((x,i)=>window.__mcAgendaItemKey(x,i)===String(itemKey));if(!checkItem||checkItem.status!==status)throw new Error('Agenda status did not persist. Update the Mission Control Apps Script deployment and try again.')}return{ok:true,synced:synced!==false,snapshot:snap}}catch(e){return{ok:false,error:String(e&&e.message||e)}}};window.__mcPrivateSnapshotBridge=true;`;d.body.appendChild(sc)}
-  const f=d.getElementById('finRefresh');if(f&&!f.dataset.bound){f.dataset.bound='1';f.onclick=async()=>{f.textContent='Refreshing…';if(win().__mcPrivatePull)await win().__mcPrivatePull();setTimeout(()=>{renderFinance(true);f.textContent='Refresh'},350)}}
+  const f=d.getElementById('finRefresh');if(f&&!f.dataset.bound){f.dataset.bound='1';f.onclick=refreshFinance}
   const a=d.getElementById('agendaRefresh');if(a&&!a.dataset.bound){a.dataset.bound='1';a.onclick=async()=>{a.textContent='Refreshing…';if(win().__mcPrivatePull)await win().__mcPrivatePull();setTimeout(()=>{renderAgenda(true);a.textContent='Refresh'},350)}}
   const t=d.getElementById('agendaTodayBtn');if(t&&!t.dataset.bound){t.dataset.bound='1';t.onclick=()=>win().switchPage('today')}
   return true
@@ -203,10 +203,36 @@ function normalizeFinance(raw){
     debt:{accounts:debtAccounts,connectedBalanceTotal,knownMonthlyCommitments,priorityNote:'Mission Control does not guess payoff priority when APR or balance data is incomplete.'}
   };
 }
+function financeAccountRows(snapshot){
+  const validRows=value=>Array.isArray(value)?value.filter(row=>row&&typeof row==='object'&&!Array.isArray(row)):[];
+  const accounts=validRows(snapshot.accounts);
+  return accounts.length?accounts:validRows(snapshot.accountBalances)
+}
+function financeAccountBalance(account){
+  const firstNumber=values=>{for(const value of values){if((typeof value==='number'||(typeof value==='string'&&value.trim()))&&Number.isFinite(Number(value)))return Number(value)}return null};
+  const available=firstNumber([account.availableBalance,account.available]);
+  return available!==null?{value:available,available:true}:{value:firstNumber([account.currentBalance,account.current,account.balance]),available:false}
+}
+function renderFinanceAccounts(snapshot,element){
+  if(!element)return;
+  const rows=financeAccountRows(snapshot);
+  element.innerHTML=rows.length?rows.map(account=>{
+    const balance=financeAccountBalance(account),label=balance.available?'Available':'Current balance';
+    return '<div class="fin-debt-card"><h4>'+esc(account.name||account.accountName||'Account')+'</h4><div class="hint">'+esc((account.institution||account.institutionName||'')+(account.mask?' • ••••'+account.mask:''))+'</div><div class="fin-balance">'+money(balance.value)+'</div><div class="fin-debt-meta">'+label+(!balance.available?'<br><span class="hint">Available not reported by provider</span>':'')+'</div></div>'
+  }).join(''):'<div class="item"><b>No account balances in the current shared snapshot.</b><span>Refresh to check for newer data. If this remains empty, the finance snapshot needs its account data restored.</span></div>'
+}
+async function refreshFinance(){
+  const button=doc().getElementById('finRefresh');if(!button||button.disabled)return;
+  button.disabled=true;button.textContent='Refreshing…';let pulled=false;
+  try{if(win().__mcPrivatePull)pulled=(await win().__mcPrivatePull())===true;renderFinance(pulled)}
+  catch(_e){pulled=false}
+  finally{button.disabled=false;button.textContent='Refresh'}
+  if(!pulled){const status=doc().getElementById('finAsOf');if(status)status.textContent='Refresh failed. Displayed data has not been confirmed against the shared snapshot.';if(win().toast)win().toast('Finance refresh failed — check Settings for sync status')}
+}
 function renderFinance(showToast=false){
   if(!installBridge())return;
   const d=doc(),rawSnap=win().__mcFinanceSnapshot?win().__mcFinanceSnapshot():null,snap=normalizeFinance(rawSnap);
-  if(!snap){const parseErr=win().__mcFinanceParseError;d.getElementById('finAsOf').textContent=parseErr?'Finance snapshot reached Mission Control but could not be parsed.':'Private finance data has not reached this device yet.';d.getElementById('finKpis').innerHTML='<div class="fin-lock">'+(parseErr?'Finance snapshot parse error: '+esc(parseErr):'Financial details stay behind your private Mission Control sync. They are not stored in the public website code.')+'</div>';return}
+  if(!snap){const parseErr=win().__mcFinanceParseError;d.getElementById('finAsOf').textContent=parseErr?'Finance snapshot reached Mission Control but could not be parsed.':'Private finance data has not reached this device yet.';d.getElementById('finKpis').innerHTML='<div class="fin-lock">'+(parseErr?'Finance snapshot parse error: '+esc(parseErr):'Financial details stay behind your private Mission Control sync. They are not stored in the public website code.')+'</div>';['finSpend','finIncome','finMargin','finPressure','finDebt','finAccounts','finReview','finSource'].forEach(id=>{const el=d.getElementById(id);if(el)el.innerHTML=''});const accounts=d.getElementById('finAccounts');if(accounts)accounts.innerHTML='<div class="item"><b>Account data unavailable.</b><span>Refresh to load the shared finance snapshot.</span></div>';return}
   const c=snap.currentMonth||{},y=snap.yearToDate||{},debt=snap.debt||{};lastFinanceStamp=snap.asOf||'';
   d.getElementById('finAsOf').textContent=`${c.label||'Current month'} • Private finance snapshot through ${dateLabel(snap.asOf)}`;
   const K=[[money(c.spending),'Month spending',`${money(c.remaining)} remaining`,c.remaining<0?'bad':''],[money(c.workingBudget),'Working budget',`${money(c.glp1Earmark)} GLP-1 earmark included`,''],[money(c.confirmedIncome),'Confirmed income',`Month margin ${signed(c.householdMargin)}`,c.householdMargin<0?'bad':'good'],[String(c.reviewItems||0),'Review items','Transactions needing a clean answer',c.reviewItems?'warn':'good'],[money(debt.connectedBalanceTotal),'Connected debt','Balances currently verified',debt.connectedBalanceTotal?'warn':'good'],[money(debt.knownMonthlyCommitments),'Known debt commitments','Minimum + recurring payment streams',''],[money(y.spending),'2026 YTD spending',`YTD margin ${signed(y.householdMargin)}`,y.householdMargin<0?'bad':'good'],[money(c.glp1Earmark),'Julie GLP-1','Protected monthly earmark','good']];
@@ -214,9 +240,7 @@ function renderFinance(showToast=false){
   renderBars(d.getElementById('finSpend'),snap.monthly||[],'spending','budget');renderBars(d.getElementById('finIncome'),snap.monthly||[],'confirmedIncome','spending');renderMargins(d.getElementById('finMargin'),snap.monthly||[]);
   const pressure=(snap.categories||[]).slice().sort((a,b)=>Number(a.variance)-Number(b.variance)),maxP=Math.max(1,...pressure.map(x=>Math.abs(Math.min(0,Number(x.variance)||0))));d.getElementById('finPressure').innerHTML=pressure.slice(0,8).map(x=>{const v=Number(x.variance)||0;return `<div class="fin-pressure-row"><div><b>${esc(x.name)}</b><div class="hint">YTD ${money(x.ytdActual)} • plan ${money(x.planned)}</div></div><div class="v">${v<0?money(Math.abs(v))+' over':money(v)+' under'}</div><div class="fin-meter"><span style="width:${v<0?Math.max(3,Math.abs(v)/maxP*100):0}%"></span></div></div>`}).join('');
   const accts=debt.accounts||[];d.getElementById('finDebt').innerHTML=`<div class="fin-debt-summary"><div class="fin-debt-stat"><b>${money(debt.connectedBalanceTotal)}</b><span>Connected balances</span></div><div class="fin-debt-stat"><b>${money(debt.knownMonthlyCommitments)}</b><span>Known monthly commitments</span></div><div class="fin-debt-stat"><b>${accts.filter(a=>a.apr==null).length}</b><span>Missing APR data</span></div></div><div class="fin-debt-grid">${accts.map(a=>`<div class="fin-debt-card ${a.balance==null?'missing':''}"><h4>${esc(a.name)}</h4><div class="hint">${esc(a.type)}</div><div class="fin-balance">${a.balance==null?'Balance unknown':money(a.balance)}</div><div class="fin-debt-meta">${esc(a.paymentLabel)}: <b>${money(a.payment)}</b><br>Next due: <b>${dateLabel(a.due)}</b><br>APR: <b>${a.apr==null?'Unknown':esc(a.apr)+'%'}</b></div><div class="fin-status">${esc(a.status)}</div></div>`).join('')}</div><div class="item" style="margin-top:9px"><b>Payoff priority is intentionally not guessed.</b><span>${esc(debt.priorityNote||'Missing APR or payoff balance data.')}</span></div>`;
-  const accountRows=snap.accounts||snap.accountBalances||[];
-  const accountEl=d.getElementById('finAccounts');
-  if(accountEl)accountEl.innerHTML=accountRows.length?accountRows.map(a=>{const available=a.availableBalance??a.available??null,current=a.currentBalance??a.current??a.balance??null,label=available!=null?'Available':'Current balance',value=available!=null?available:current;return '<div class="fin-debt-card"><h4>'+esc(a.name||a.accountName||'Account')+'</h4><div class="hint">'+esc((a.institution||a.institutionName||'')+(a.mask?' • ••••'+a.mask:''))+'</div><div class="fin-balance">'+money(value)+'</div><div class="fin-debt-meta">'+label+(available==null?'<br><span class="hint">Available not reported by provider</span>':'')+'</div></div>'}).join(''):'<div class="item"><b>Account balances are not in the private snapshot yet.</b><span>The UI is ready; the next finance snapshot can populate them without exposing balances in GitHub.</span></div>';
+  renderFinanceAccounts(snap,d.getElementById('finAccounts'));
   d.getElementById('finReview').innerHTML=(snap.reviewItems||[]).map(x=>`<div class="fin-review"><span>${dateLabel(x.date)}</span><b>${esc(x.description)}</b><span class="amount">${money(x.amount)}</span><span class="cat">${esc(x.category)}</span><span class="reason">${esc(x.reason)}</span></div>`).join('')||'<div class="item"><b>Nothing needs review.</b></div>';
   d.getElementById('finSource').innerHTML=`<b>Privacy:</b> Financial details and account balances are carried through your existing private Mission Control sync and are not embedded in the public GitHub Pages code.<br><b>Data rule:</b> ${esc(snap.sourceNote||'Missing balances and APRs remain unknown rather than estimated.')}`;
   if(showToast&&win().toast)win().toast('Finances refreshed');
