@@ -33,7 +33,7 @@ export function projectMemberMeals(meals, householdId) {
   if (!householdId || !object(meals) || meals.householdId !== householdId) return null;
   const plan = meals.approved;
   if (!object(plan) || !Array.isArray(plan.days) || plan.days.length > 7) return null;
-  return {weekStart: text(plan.weekStart), days: plan.days.filter(object).map(day => ({date: text(day.date), meal: text(day.meal), prep: text(day.prep)})),
+  return {...(Number.isSafeInteger(meals.version)&&meals.version>0?{version:meals.version}:{}),weekStart: text(plan.weekStart), days: plan.days.filter(object).map(day => ({date: text(day.date), meal: text(day.meal), prep: text(day.prep)})),
     groceryList: Array.isArray(plan.groceryList) ? plan.groceryList.slice(0, 200).filter(object).map(item => ({item: text(item.item), qty: text(item.qty), done: item.done === true})) : []};
 }
 

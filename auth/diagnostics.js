@@ -38,7 +38,8 @@ export function sanitizeDiagnostics(value) {
     source: {gitSha: source.gitSha, canonicalSha256: source.canonicalSha256, legacyBuildId: source.legacyBuildId, immutableVersion: null},
     gates: {projectV1TrustedDispatch: boolean(value.gates.projectV1TrustedDispatch),
       memberSetup: value.gates.memberSetup === undefined ? null : boolean(value.gates.memberSetup),
-      memberDashboard: value.gates.memberDashboard === undefined ? null : boolean(value.gates.memberDashboard)},
+      memberDashboard: value.gates.memberDashboard === undefined ? null : boolean(value.gates.memberDashboard),
+      memberMealsEdit: value.gates.memberMealsEdit === undefined ? null : boolean(value.gates.memberMealsEdit)},
     snapshot: {coordination: choice(value.snapshot.coordination, ["shared-script-lock"]), legacyWritesSerialized: choice(value.snapshot.legacyWritesSerialized, [false])},
     sheets: {
       legacyProjects: {...summary(sheets.legacyProjects), applicable: boolean(sheets.legacyProjects.applicable)},
@@ -86,6 +87,7 @@ export function deploymentDiagnostics(env = process.env) {
     projectV1Dispatch: env.MC_PROJECT_V1_DISPATCH === "enabled",
     memberSetup: env.MC_MEMBER_SETUP === "enabled",
     memberDashboard: env.MC_MEMBER_DASHBOARD === "enabled",
+    memberMealsEdit: env.MC_MEMBER_MEALS_EDIT === "enabled",
     clerkPublishableKeyMode: keyMode(env.CLERK_PUBLISHABLE_KEY, "pk_test_", "pk_live_"),
     clerkSecretKeyMode: keyMode(env.CLERK_SECRET_KEY, "sk_test_", "sk_live_")
   };

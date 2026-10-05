@@ -9,7 +9,7 @@ function browser(transport){
  const buttons=['schedule','budget','meals','family'].map(tab=>({dataset:{tab},setAttribute(k,v){this[k]=v;}}));
  const events=new Map(),documentEvents=new Map(),intervals=[],calls=[],renders=[];
  const clerk={isSignedIn:true,user:{id:'u1'},session:{id:'s1'},listeners:[],addListener(fn){this.listeners.push(fn);}};
- const ctx=vm.createContext({window:{Clerk:clerk,addEventListener:(name,fn)=>events.set(name,fn)},document:{hidden:false,getElementById:id=>elements[id],addEventListener:(name,fn)=>documentEvents.set(name,fn)},renderMemberDashboard(root,data,tab){root.children=[data];renders.push({data,tab});},setInterval:fn=>intervals.push(fn),fetch:async(_url,options)=>{calls.push(JSON.parse(options.body));return transport();}});
+ const ctx=vm.createContext({window:{Clerk:clerk,addEventListener:(name,fn)=>events.set(name,fn)},document:{hidden:false,getElementById:id=>elements[id],addEventListener:(name,fn)=>documentEvents.set(name,fn)},createMemberMealsEditor(){return{reset(){},actions(){},readback(){}};},renderMemberDashboard(root,data,tab){root.children=[data];renders.push({data,tab});},setInterval:fn=>intervals.push(fn),fetch:async(_url,options)=>{calls.push(JSON.parse(options.body));return transport();}});
  vm.runInContext(fs.readFileSync(new URL('../member-dashboard-ui.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,''),ctx);
  const settle=async()=>{for(let i=0;i<8;i++)await new Promise(resolve=>setImmediate(resolve));};return{elements,buttons,events,documentEvents,intervals,calls,renders,clerk,settle,authenticate:()=>events.get('mc-authenticated')()};
 }

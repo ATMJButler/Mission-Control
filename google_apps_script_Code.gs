@@ -23,6 +23,7 @@ function rejectUnknownFields_(body,allowed){const unknown=Object.keys(body||{}).
 function doPost(e){try{
   const body=JSON.parse((e&&e.postData&&e.postData.contents)||'{}');
   authorize_(body.token);
+  if(body.resource==="member_meals_edit")return json_(editMemberMeals_(body));
   if(body.resource==="member_dashboard")return json_(readMemberDashboard_(body));
   if(body.resource==="member_setup")return json_(memberSetup_(body));
   if(body.resource==="system_diagnostics"){
@@ -220,7 +221,8 @@ function readSystemDiagnostics_(body) {
       source: {gitSha: MC_SOURCE_SHA, canonicalSha256: MC_CANONICAL_SHA256, legacyBuildId: MC_BUILD_ID, immutableVersion: null},
       gates: {projectV1TrustedDispatch: PropertiesService.getScriptProperties().getProperty("PROJECT_V1_TRUSTED_DISPATCH") === "enabled",
         memberSetup: PropertiesService.getScriptProperties().getProperty("MEMBER_SETUP") === "enabled",
-        memberDashboard: PropertiesService.getScriptProperties().getProperty("MEMBER_DASHBOARD") === "enabled"},
+        memberDashboard: PropertiesService.getScriptProperties().getProperty("MEMBER_DASHBOARD") === "enabled",
+        memberMealsEdit: PropertiesService.getScriptProperties().getProperty("MEMBER_MEALS_EDIT") === "enabled"},
       snapshot: {coordination: "shared-script-lock", legacyWritesSerialized: false},
       sheets: {legacyProjects, projectResources, projectOperationAudit}, fixture, recentFixtureOperations,
       identity: {activeUsers: users.rows.filter(r => householdUserIds.has(String(r[0])) && r[1] === "active").length,
@@ -365,7 +367,7 @@ function memberMealsRead_(householdId){
     if(!memberObject_(plan)||!Array.isArray(plan.days)||plan.days.length>7||plan.days.some(day=>!memberObject_(day)))throw new Error('Invalid meal plan');
     const grocery=Array.isArray(plan.groceryList)?plan.groceryList:[];
     if(grocery.length>200||grocery.some(item=>!memberObject_(item)))throw new Error('Invalid groceries');
-    return{state:'available',value:{householdId:householdId,approved:{weekStart:memberText_(plan.weekStart),days:plan.days.map(day=>({date:memberText_(day.date),meal:memberText_(day.meal),prep:memberText_(day.prep)})),groceryList:grocery.map(item=>({item:memberText_(item.item),qty:memberText_(item.qty),done:item.done===true}))}}};
+    return{state:'available',value:{householdId:householdId,version:Number.isSafeInteger(raw.version)&&raw.version>0?raw.version:null,approved:{weekStart:memberText_(plan.weekStart),days:plan.days.map(day=>({date:memberText_(day.date),meal:memberText_(day.meal),prep:memberText_(day.prep)})),groceryList:grocery.map(item=>({item:memberText_(item.item),qty:memberText_(item.qty),done:item.done===true}))}}};
   }catch(_e){return{state:'unavailable',value:null}}
 }
 function memberFamilyRead_(householdId){
@@ -388,6 +390,47 @@ function readMemberDashboard_(body){
     memberSetupAuthority_(body);
     const budget=memberBudgetRead_(body.householdId),meals=memberMealsRead_(body.householdId),family=memberFamilyRead_(body.householdId);
     const setup=memberSetupRecord_(body);
-    return{ok:true,householdId:body.householdId,budgetSnapshot:budget.value,meals:meals.value,familyResources:family.value,profile:setup.record?setup.record.profile:null,sections:{budget:budget.state,meals:meals.state,family:family.state}};
+    return{ok:true,memberMealsEditEnabled:PropertiesService.getScriptProperties().getProperty('MEMBER_MEALS_EDIT')==='enabled',householdId:body.householdId,budgetSnapshot:budget.value,meals:meals.value,familyResources:family.value,profile:setup.record?setup.record.profile:null,sections:{budget:budget.state,meals:meals.state,family:family.state}};
   }finally{lock.releaseLock()}
+}
+
+function validMemberMealEdit_(operation,rows){
+  const object=value=>value&&typeof value==='object'&&!Array.isArray(value);
+  const text=(value,max,blank)=>typeof value==='string'&&value.length<=max&&(blank||value.trim().length>0);
+  if(!Array.isArray(rows))return false;
+  if(operation==='edit_meals')return rows.length>0&&rows.length<=7&&new Set(rows.map(row=>row&&row.date)).size===rows.length&&rows.every(row=>object(row)&&Object.keys(row).length===3&&Object.keys(row).every(key=>['date','meal','prep'].includes(key))&&text(row.date,10,false)&&isProjectCalendarDate_(row.date)&&text(row.meal,200,false)&&text(row.prep,500,true));
+  if(operation==='edit_groceries')return rows.length<=200&&rows.every(row=>object(row)&&Object.keys(row).length===3&&Object.keys(row).every(key=>['item','qty','done'].includes(key))&&text(row.item,200,false)&&text(row.qty,100,true)&&typeof row.done==='boolean');
+  return false;
+}
+function editMemberMeals_(body){
+  if(PropertiesService.getScriptProperties().getProperty('MEMBER_MEALS_EDIT')!=='enabled'||PropertiesService.getScriptProperties().getProperty('MEMBER_DASHBOARD')!=='enabled')throw new Error('MEMBER_MEALS_DISABLED');
+  rejectUnknownFields_(body,['token','resource','operation','actor','householdId','expectedVersion','rows']);
+  if(!Number.isSafeInteger(body.expectedVersion)||body.expectedVersion<1||body.expectedVersion>=Number.MAX_SAFE_INTEGER||!validMemberMealEdit_(body.operation,body.rows))throw new Error('MEMBER_MEALS_INVALID');
+  const lock=LockService.getScriptLock();lock.waitLock(30000);let writing=false;
+  try{
+    memberSetupAuthority_(body);
+    const sheet=SpreadsheetApp.getActive().getSheetByName('Meals'),headers=['key','householdId','schemaVersion','updatedAt','updatedBy','status','json','notes'];
+    if(!sheet||sheet.getRange(1,1,1,8).getValues()[0].map(String).join('|')!==headers.join('|'))throw new Error('MEMBER_MEALS_UNAVAILABLE');
+    const rows=sheet.getLastRow()>1?sheet.getRange(2,1,sheet.getLastRow()-1,8).getValues():[],matches=[];
+    rows.forEach((row,index)=>{if(String(row[1])===body.householdId)matches.push({row:row,sheetRow:index+2})});
+    if(matches.length!==1)throw new Error('MEMBER_MEALS_UNAVAILABLE');
+    const rec=matches[0];if(!rec.row[0]||rows.filter(row=>String(row[0])===String(rec.row[0])).length!==1)throw new Error('MEMBER_MEALS_UNAVAILABLE');
+    let current;try{current=memberCellJson_(rec.row[6])}catch(_e){throw new Error('MEMBER_MEALS_UNAVAILABLE')}
+    if(current.householdId!==body.householdId)throw new Error('MEMBER_MEALS_FORBIDDEN');
+    if(!Number.isSafeInteger(current.version)||current.version<1||!memberObject_(current.approved)||!Array.isArray(current.approved.days))throw new Error('MEMBER_MEALS_UNAVAILABLE');
+    if(current.version!==body.expectedVersion)throw new Error('MEMBER_MEALS_CONFLICT');
+    const next=JSON.parse(JSON.stringify(current));
+    if(body.operation==='edit_meals'){
+      // Edit existing approved dates only; adding weeks/approving drafts is separate.
+      const dates=current.approved.days.map(day=>day&&day.date);
+      if(new Set(dates).size!==dates.length||body.rows.length!==dates.length||body.rows.some(row=>!dates.includes(row.date)))throw new Error('MEMBER_MEALS_INVALID');
+      next.approved.days=body.rows.map(row=>{const prior=current.approved.days.find(day=>day.date===row.date),day=JSON.parse(JSON.stringify(prior));day.date=row.date;day.meal=row.meal;day.prep=row.prep;if(prior.meal!==row.meal)delete day.recipe;return day});
+    }else next.approved.groceryList=body.rows.map(row=>{const matches=Array.isArray(current.approved.groceryList)?current.approved.groceryList.filter(item=>item&&item.item===row.item):[];const item=matches.length===1?JSON.parse(JSON.stringify(matches[0])):{};item.item=row.item;item.qty=row.qty;item.done=row.done;return item});
+    next.version=current.version+1;next.updatedAt=new Date().toISOString();next.updatedBy=body.actor;
+    next.approved.updatedAt=next.updatedAt;next.approved.updatedBy=body.actor;
+    const cells=rec.row.slice();cells[3]=next.updatedAt;cells[4]=body.actor;cells[6]=JSON.stringify(next);
+    writing=true;sheet.getRange(rec.sheetRow,1,1,8).setValues([cells]);SpreadsheetApp.flush();
+    return{ok:true,previousVersion:current.version,newVersion:next.version};
+  }catch(error){if(writing)throw new Error('MEMBER_MEALS_OUTCOME_UNKNOWN');throw error}
+  finally{try{if(writing)SpreadsheetApp.flush()}catch(_e){console.error('Member Meals cleanup flush failed')}finally{lock.releaseLock()}}
 }

@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import {createAppsScriptHarness} from './helpers/apps-script-harness.js';
 import {setupDefaults,validateSetupPreferences,callMemberSetup} from './member-setup.js';
+import {validateMemberMealEdit,editMemberMeals} from './member-meals-edit.js';
 import {authorize} from './authorization.js';
 import {requireMissionControlOrigin} from './origin.js';
 const headers=['userId','householdId','schemaVersion','version','preferencesJson','status','updatedAt','updatedBy'];
@@ -47,7 +48,7 @@ function route(t,{role='secondary',signedIn=true,gate=true,transport}={}){
  const h=harness(role),calls=[],previous={};for(const [name,value] of Object.entries({MC_AUTHORIZED_PARTIES:'https://offline.invalid',MC_SYNC_URL:'https://offline.invalid/exec',MC_SYNC_TOKEN:'offline-service-token'})){previous[name]=process.env[name];process.env[name]=value;}
  const previousFetch=globalThis.fetch;globalThis.fetch=async(url,options)=>{const body=JSON.parse(options.body);calls.push(body);if(transport)return transport(h,body);return new Response(JSON.stringify(h.post(body)));};
  t.after(()=>{globalThis.fetch=previousFetch;for(const [name,value]of Object.entries(previous)){if(value===undefined)delete process.env[name];else process.env[name]=value;}});
- const ctx=vm.createContext({process:{env:{MC_DEFAULT_HOUSEHOLD_ID:'home',MC_MEMBER_SETUP:gate?'enabled':''}},Set,Number,requireMissionControlOrigin,authorize,validateSetupPreferences,callMemberSetup,installClerkIdentityAdapter(){},installUpstreamDirectoryAdapter(){},requireVerifiedIdentity:async()=>{if(!signedIn)throw Object.assign(new Error('private'),{statusCode:401,code:'UNAUTHENTICATED'});return{provider:'offline',subject:'private'};},resolveAccessContext:async(_identity,householdId)=>({user:{userId:'u1',status:'active'},household:{householdId,status:householdId==='home'?'active':'inactive'},membership:{userId:'u1',householdId,role,status:'active'}})});
+ const ctx=vm.createContext({process:{env:{MC_DEFAULT_HOUSEHOLD_ID:'home',MC_MEMBER_SETUP:gate?'enabled':''}},Set,Number,validateMemberMealEdit,editMemberMeals,requireMissionControlOrigin,authorize,validateSetupPreferences,callMemberSetup,installClerkIdentityAdapter(){},installUpstreamDirectoryAdapter(){},requireVerifiedIdentity:async()=>{if(!signedIn)throw Object.assign(new Error('private'),{statusCode:401,code:'UNAUTHENTICATED'});return{provider:'offline',subject:'private'};},resolveAccessContext:async(_identity,householdId)=>({user:{userId:'u1',status:'active'},household:{householdId,status:householdId==='home'?'active':'inactive'},membership:{userId:'u1',householdId,role,status:'active'}})});
  const source=fs.readFileSync(new URL('../api/v1/member.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,'').replace('export default async function handler','globalThis.handler=async function handler');vm.runInContext(source,ctx);
  return{h,calls,async request(body={operation:'read'},origin='https://offline.invalid'){let status=200,result;const headers={};await ctx.handler({method:'POST',body,headers:{origin,'sec-fetch-site':'same-origin'}},{setHeader(k,v){headers[k]=v;return this},status(v){status=v;return this},json(v){result=v;return this}});return{status,result,headers};}};
 }
