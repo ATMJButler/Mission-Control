@@ -1,0 +1,81 @@
+name: Stage Test Apps Script
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mission-control-apps-script-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify release source
+        env:
+          RELEASE_REF: ${{ github.ref }}
+        run: |
+          test "$RELEASE_REF" = "refs/heads/main"
+          MAIN_SHA="$(git ls-remote origin refs/heads/main | cut -f1)"
+          test -n "$MAIN_SHA"
+          test "$GITHUB_SHA" = "$MAIN_SHA"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install clasp
+        run: npm install --global @google/clasp@3.4.1
+
+      - name: Configure clasp
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          test -n "$CLASPRC_JSON"
+          node -e 'try { const value = JSON.parse(process.env.CLASPRC_JSON); if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(); } catch { console.error("CLASPRC_JSON must contain a JSON object; credential contents omitted."); process.exit(1); }'
+          umask 077
+          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+
+      - name: Stage Apps Script source
+        run: |
+          mkdir -p apps-script-dist
+          node scripts/stage-apps-script.mjs
+          cp staging/StagingSetup.gs apps-script-dist/StagingSetup.gs
+          node -e 'require("fs").writeFileSync(".clasp.json",JSON.stringify({scriptId:"1dxTX6HWorvrR76H6idiNH2Q4BNsRo-U2YjtADfSjoXsPwd3OrfZLzDcV",rootDir:"apps-script-dist"}))'
+          cat > apps-script-dist/appsscript.json <<'EOF'
+          {
+            "timeZone": "America/Chicago",
+            "exceptionLogging": "STACKDRIVER",
+            "runtimeVersion": "V8"
+          }
+          EOF
+
+      - name: Push source
+        run: clasp push --force
+
+      - name: Create immutable version
+        id: version
+        run: |
+          OUTPUT="$(clasp create-version "GitHub Actions ${GITHUB_SHA}")"
+          echo "$OUTPUT"
+          VERSION="$(printf '%s' "$OUTPUT" | grep -Eo '[0-9]+' | tail -1)"
+          test -n "$VERSION"
+          echo "number=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Report staging version
+        env:
+          APPS_SCRIPT_VERSION: ${{ steps.version.outputs.number }}
+        run: |
+          echo "::notice title=Staging source ready::Immutable version $APPS_SCRIPT_VERSION; source $GITHUB_SHA; staging initializer and Web App deployment require owner action."
+          echo "Production project and Web App were not targeted." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove runner credential
+        if: always()
+        run: rm -f "$HOME/.clasprc.json"
