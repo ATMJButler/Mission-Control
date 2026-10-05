@@ -15,11 +15,11 @@ async function load(){
  try{
   const response=await fetch('/api/v1/member',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'dashboard'})});const body=await response.json();
   if(current!==generation||sessionKey()!==currentKey)return;
-  if(!response.ok||body.ok!==true||!body.dashboard){const error=new Error('Workspace rejected');error.code=body.code;throw error;}
+  if(!response.ok||body.ok!==true||!body.dashboard){const error=new Error('Workspace rejected');error.code=body.code;error.accessDenied=response.status===401||response.status===403;throw error;}
   const firstLoad=dashboard===null;dashboard=body.dashboard;
   if(firstLoad&&dashboard.profile?.preferences?.step===6&&['schedule','budget','meals','family'].includes(dashboard.profile.preferences.startView))tab=dashboard.profile.preferences.startView;
   get('status').textContent='Shared data loaded. Personal account connections are still pending.';editor.readback(dashboard);render();
- }catch(error){if(current!==generation||sessionKey()!==currentKey)return;dashboard=null;if(['MEMBER_DASHBOARD_FORBIDDEN','UNAUTHENTICATED'].includes(error.code))editor.reset();get('panel').replaceChildren();get('tabs').hidden=true;get('status').textContent=error.code==='MEMBER_DASHBOARD_DISABLED'?'Your member workspace has not been activated yet.':error.code==='USER_NOT_PROVISIONED'?'Accept your household invitation before opening this workspace.':'Shared data could not be verified. Try refreshing or check household access.';}
+ }catch(error){if(current!==generation||sessionKey()!==currentKey)return;dashboard=null;if(error.accessDenied||['MEMBER_DASHBOARD_FORBIDDEN','UNAUTHENTICATED'].includes(error.code))editor.reset();get('panel').replaceChildren();get('tabs').hidden=true;get('status').textContent=error.code==='MEMBER_DASHBOARD_DISABLED'?'Your member workspace has not been activated yet.':error.code==='USER_NOT_PROVISIONED'?'Accept your household invitation before opening this workspace.':'Shared data could not be verified. Try refreshing or check household access.';}
  finally{if(current===generation){pending=false;get('refresh').disabled=false;}}
 }
 get('refresh').onclick=load;for(const button of get('tabs').querySelectorAll('button'))button.onclick=()=>{tab=button.dataset.tab;render();};
