@@ -1,3 +1,4 @@
+import {assessMemberReadiness} from '../scripts/member-readiness.mjs';
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import crypto from "node:crypto";
@@ -171,4 +172,43 @@ test("response projection strips unknown fields and local build identity remains
 });
 test('member gates are observed independently; older backends remain unverified',()=>{
  const h=setup();h.properties.set('MEMBER_SETUP','enabled');h.properties.set('MEMBER_DASHBOARD','disabled');const raw=report(h),safe=sanitizeDiagnostics(raw);assert.equal(safe.gates.memberSetup,true);assert.equal(safe.gates.memberDashboard,false);delete raw.gates.memberSetup;delete raw.gates.memberDashboard;const old=sanitizeDiagnostics(raw);assert.equal(old.gates.memberSetup,null);assert.equal(old.gates.memberDashboard,null);assert.equal(deploymentDiagnostics({MC_MEMBER_SETUP:'enabled'}).memberSetup,true);assert.equal(deploymentDiagnostics({MC_MEMBER_DASHBOARD:'true'}).memberDashboard,false);assertNoWrites(h);
+});
+
+function readinessExport(){
+ const backend=report(setup());backend.checkedAt='2026-10-05T00:00:00.000Z';
+ return {ok:true,evidenceClass:'authenticated-read-only-runtime-snapshot',backend,
+  vercel:{gitSha:'b'.repeat(40),environment:'production',memberSetup:true,memberDashboard:true,memberMealsEdit:true,clerkPublishableKeyMode:'production',clerkSecretKeyMode:'production'}};
+}
+const readinessOptions={readSource:()=>canonical,now:Date.parse('2026-10-05T00:01:00Z')};
+const readinessState=(result,check)=>result.checks.find(row=>row.check===check).state;
+test('readiness compares canonical content across different commit SHAs without claiming runtime acceptance',()=>{
+ const result=assessMemberReadiness(readinessExport(),readinessOptions);
+ assert.equal(result.sameCommit,false);assert.equal(readinessState(result,'Apps Script content agrees with Vercel source'),'PASS');
+ assert.equal(result.julieReady,false);assert.equal(result.memberCommissioningComplete,false);assert.equal(result.immutableVersionVerified,false);
+});
+test('readiness detects forged digest and changed backend source',()=>{
+ const input=readinessExport();input.backend.source.canonicalSha256='f'.repeat(64);
+ assert.equal(readinessState(assessMemberReadiness(input,readinessOptions),'Backend source digest'),'FAIL');
+ const changed=assessMemberReadiness(readinessExport(),{...readinessOptions,readSource:ref=>ref===sha?canonical:canonical+'changed'});
+ assert.equal(readinessState(changed,'Apps Script content agrees with Vercel source'),'FAIL');
+});
+test('readiness refuses stale and future snapshots as current evidence',()=>{
+ for(const now of ['2026-10-05T00:16:00Z','2026-10-04T23:58:00Z'])assert.equal(readinessState(assessMemberReadiness(readinessExport(),{...readinessOptions,now:Date.parse(now)}),'Snapshot freshness'),'PENDING');
+});
+test('readiness requires each literal true gate on both services',()=>{
+ for(const gate of ['memberSetup','memberDashboard','memberMealsEdit'])for(const layer of ['vercel','backend']){
+  const input=readinessExport();for(const name of ['memberSetup','memberDashboard','memberMealsEdit'])input.backend.gates[name]=true;
+  if(layer==='vercel')input.vercel[gate]='enabled';else input.backend.gates[gate]=false;
+  assert.equal(readinessState(assessMemberReadiness(input,readinessOptions),`Both ${gate} gates enabled`),'PENDING');
+ }
+});
+test('readiness never forwards extra sensitive export fields and fails malformed exports',()=>{
+ const input=readinessExport();input.token='private-secret';input.backend.secret='private-secret';
+ assert.ok(!JSON.stringify(assessMemberReadiness(input,readinessOptions)).includes('private-secret'));
+ for(const value of [null,{}, {...input,evidenceClass:'mock'}, {...input,vercel:{gitSha:'invalid'}}])assert.throws(()=>assessMemberReadiness(value,readinessOptions));
+});
+test('readiness keeps preview and development Clerk credentials pending',()=>{
+ const input=readinessExport();input.vercel.environment='preview';input.vercel.clerkSecretKeyMode='development';
+ const result=assessMemberReadiness(input,readinessOptions);
+ assert.equal(readinessState(result,'Production Vercel artifact'),'PENDING');assert.equal(readinessState(result,'Production Clerk credentials'),'PENDING');
 });
