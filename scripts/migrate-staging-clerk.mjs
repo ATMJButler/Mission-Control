@@ -60,6 +60,9 @@ export async function migrateStagingClerk({token,secretKey,publishableKey,sha,re
     if(state.projectId&&state.projectId!==stagingProjectId)throw new Error('Deployment project readback mismatch.');
   }
   if(state.readyState!=='READY')throw new Error('Staging deployment readiness not confirmed; do not resend.');
+  await call(`/v2/deployments/${deployment.id}/aliases`,{method:'POST',body:{alias:'mission-control-staging.vercel.app'}});
+  const assigned=await call('/v4/aliases/mission-control-staging.vercel.app');
+  if(assigned.projectId!==stagingProjectId||assigned.deploymentId!==deployment.id)throw new Error('Explicit staging alias assignment not confirmed; stop for readback.');
   let cfg;
   for(let attempt=0;attempt<10;attempt++){
     try{const r=await request('https://mission-control-staging.vercel.app/api/v1/auth-config',{method:'GET',cache:'no-store',signal:AbortSignal.timeout(20000)});if(r.ok)cfg=await r.json();}catch{}
@@ -67,7 +70,7 @@ export async function migrateStagingClerk({token,secretKey,publishableKey,sha,re
     await pause(1000);
   }
   if(cfg?.ok!==true||cfg.publishableKey!==publishableKey){
-    await call(`/v1/projects/${stagingProjectId}/rollback/${priorAlias.deploymentId}`,{method:'POST'});
+    await call(`/v2/deployments/${priorAlias.deploymentId}/aliases`,{method:'POST',body:{alias:'mission-control-staging.vercel.app'}});
     throw new Error('New staging alias key unconfirmed; rollback to previous deployment requested. Project environment retains the new desired keys.');
   }
   return {evidenceClass:'github-staging-clerk-migration-readback',projectId:stagingProjectId,deploymentId:deployment.id,previousDeploymentId:priorAlias.deploymentId,ready:true,clerkKeyVerified:true,mealsEditingEnabled:false,julieReady:false};
