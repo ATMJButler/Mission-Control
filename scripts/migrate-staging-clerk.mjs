@@ -32,55 +32,24 @@ export async function migrateStagingClerk({token,secretKey,publishableKey,sha,re
   const value=key=>selected.find(e=>e.key===key)?.value;
   if((typeof value('MC_MEMBER_DASHBOARD')==='string'&&value('MC_MEMBER_DASHBOARD')!=='enabled')||value('MC_MEMBER_MEALS_EDIT')==='enabled'||value('MC_MEMBER_SETUP')==='enabled'||value('MC_PROJECT_V1_DISPATCH')==='enabled')throw new Error('Read-only staging gate policy required before migration.');
   const replacements={CLERK_SECRET_KEY:secretKey,CLERK_PUBLISHABLE_KEY:publishableKey,MC_MEMBER_DASHBOARD:'enabled',MC_MEMBER_MEALS_EDIT:'disabled',MC_MEMBER_SETUP:'disabled',MC_PROJECT_V1_DISPATCH:'disabled'};
-  const changed=[],backedUp=[];
-  let phase='preflight';
-  const list=async()=>{const r=await call(`/v10/projects/${stagingProjectId}/env`);if(!Array.isArray(r.envs))throw new Error('Environment readback invalid.');return r.envs;};
-  const marker='Mission Control isolated staging Clerk migration';
+  const priorAlias=await call('/v4/aliases/mission-control-staging.vercel.app');
+  if(priorAlias.projectId!==stagingProjectId||!/^dpl_[A-Za-z0-9]+$/.test(priorAlias.deploymentId||''))throw new Error('Existing staging deployment recovery reference required.');
+  const changed=[];
   try {
     for(const env of selected.filter(e=>Object.hasOwn(replacements,e.key))){
       if(env.value===replacements[env.key])continue;
-      const backupKey='MC_STAGING_PRIOR_'+env.key;
-      if(production.some(e=>e.key===backupKey))throw new Error('Existing migration backup requires review before another change.');
-      phase='readable binding update';
-      if(typeof env.value==='string'){
-        changed.push(env);
-        await call(`${base}/${env.id}`,{method:'PATCH',body:{value:replacements[env.key]}});
-        const verified=await call(`/v1/projects/${stagingProjectId}/env/${env.id}`);
-        if(verified.value!==replacements[env.key])throw new Error('Staging key update readback mismatch.');
-      }else{
-        backedUp.push({...env,backupKey});
-        phase='server-side backup rename';
-        await call(`${base}/${env.id}`,{method:'PATCH',body:{key:backupKey}});
-        const renamed=(await list()).find(e=>e.id===env.id);
-        if(renamed?.key!==backupKey)throw new Error('Server-side key backup readback mismatch.');
-        phase='replacement creation';
-        await call(`/v10/projects/${stagingProjectId}/env`,{method:'POST',body:{key:env.key,value:replacements[env.key],target:['production'],type:'encrypted',comment:marker}});
-        phase='replacement readback';
-        const created=(await list()).filter(e=>e.key===env.key&&e.target?.includes('production'));
-        if(created.length!==1||created[0].comment!==marker)throw new Error('Replacement key binding ambiguous.');
-        const verified=await call(`/v1/projects/${stagingProjectId}/env/${created[0].id}`);
-        if(verified.value!==replacements[env.key])throw new Error('Replacement key readback mismatch.');
-      }
+      changed.push(env);
+      await call(`${base}/${env.id}`,{method:'PATCH',body:{value:replacements[env.key]}});
+      const verified=await call(`/v1/projects/${stagingProjectId}/env/${env.id}`);
+      if(verified.key!==env.key||(typeof verified.value==='string'&&verified.value!==replacements[env.key]))throw new Error('Staging binding update readback mismatch.');
     }
   } catch(error) {
     let restored=true;
-    for(const env of changed){try{await call(`${base}/${env.id}`,{method:'PATCH',body:{value:env.value}});const verify=await call(`/v1/projects/${stagingProjectId}/env/${env.id}`);if(verify.value!==env.value)restored=false;}catch{restored=false;}}
-    for(const env of backedUp){try{
-      const current=await list(),original=current.find(e=>e.id===env.id);
-      if(original?.key===env.key)continue;
-      if(original?.key!==env.backupKey)throw new Error();
-      const created=current.filter(e=>e.key===env.key&&e.target?.includes('production'));
-      if(created.length>1)throw new Error();
-      if(created.length){
-        if(created[0].comment!==marker)throw new Error();
-        const verify=await call(`/v1/projects/${stagingProjectId}/env/${created[0].id}`);
-        if(verify.value!==replacements[env.key])throw new Error();
-        await call(`${base}/${created[0].id}`,{method:'DELETE'});
-      }
-      await call(`${base}/${env.id}`,{method:'PATCH',body:{key:env.key}});
-      if((await list()).find(e=>e.id===env.id)?.key!==env.key)throw new Error();
-    }catch{restored=false;}}
-    throw new Error((restored?'Staging key update stopped; prior environment values restored. No deployment requested.':'Staging key update stopped; restoration requires review. No deployment requested.')+` Phase ${phase}; ${error.message}`);
+    for(const env of changed){
+      if(typeof env.value!=='string'){restored=false;continue;}
+      try{await call(`${base}/${env.id}`,{method:'PATCH',body:{value:env.value}});const verify=await call(`/v1/projects/${stagingProjectId}/env/${env.id}`);if(verify.value!==env.value)restored=false;}catch{restored=false;}
+    }
+    throw new Error((restored?'Staging key update stopped; prior environment values restored. No deployment requested.':'Staging key update stopped; prior live deployment retained. Project environment needs readback before another deployment.')+` ${error.message}`);
   }
   const deployment=await call('/v13/deployments',{method:'POST',body:{name:'mission-control-staging',project:stagingProjectId,target:'production',gitSource:{type:'github',repoId:1335188517,ref:'main',sha}}});
   if(!/^dpl_[A-Za-z0-9]+$/.test(deployment.id))throw new Error('Unexpected staging deployment response; do not resend.');
@@ -93,8 +62,11 @@ export async function migrateStagingClerk({token,secretKey,publishableKey,sha,re
   if(state.readyState!=='READY')throw new Error('Staging deployment readiness not confirmed; do not resend.');
   let cfg;
   try{const r=await request('https://mission-control-staging.vercel.app/api/v1/auth-config',{method:'GET',cache:'no-store',signal:AbortSignal.timeout(20000)});if(r.ok)cfg=await r.json();}catch{}
-  if(cfg?.ok!==true||cfg.publishableKey!==publishableKey)throw new Error('Staging alias has not confirmed the new Clerk key; stop for readback.');
-  return {evidenceClass:'github-staging-clerk-migration-readback',projectId:stagingProjectId,deploymentId:deployment.id,ready:true,clerkKeyVerified:true,mealsEditingEnabled:false,julieReady:false};
+  if(cfg?.ok!==true||cfg.publishableKey!==publishableKey){
+    await call(`/v1/projects/${stagingProjectId}/rollback/${priorAlias.deploymentId}`,{method:'POST'});
+    throw new Error('New staging alias key unconfirmed; rollback to previous deployment requested. Project environment retains the new desired keys.');
+  }
+  return {evidenceClass:'github-staging-clerk-migration-readback',projectId:stagingProjectId,deploymentId:deployment.id,previousDeploymentId:priorAlias.deploymentId,ready:true,clerkKeyVerified:true,mealsEditingEnabled:false,julieReady:false};
 }
 
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
