@@ -12,7 +12,7 @@
     "test:member-projection": "node --test auth/member-projection.test.js",
     "test:family-calendar": "node --test auth/family-calendar.test.js",
     "test:member-setup": "node --test auth/member-setup.test.js auth/member-setup-ui.test.js",
-    "test:member-dashboard": "node --test auth/member-dashboard.test.js auth/member-dashboard-ui.test.js",
+    "test:member-dashboard": "node --test auth/member-dashboard.test.js auth/member-dashboard-ui.test.js auth/member-ui-isolation.test.js",
     "test:member-meals-edit": "node --test auth/member-meals-edit.test.js auth/member-meals-editor.test.js"
   },
   "dependencies": {
