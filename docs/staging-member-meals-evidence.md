@@ -127,3 +127,28 @@ save once: expected version 12→13. Confirm apples and all unrelated fields rem
 preserved, then return staging to read-only. Any unexpected version, failure or
 uncertain response requires readback and review before another write. This test
 is pending and must not be run while the edit gate is disabled.
+
+## Completed grocery add/remove acceptance
+
+Owner dashboard and physical-sheet screenshots confirm two normal editor saves:
+
+- Add: version 11→12, TEST apples quantity "6" / bought true preserved;
+  new item **Test Banana**, quantity "2", bought false. The chosen name/quantity
+  differ from the example instructions and remain valid input. Physical timestamp
+  `2026-10-06T22:02:53.889Z`.
+- Remove: version 12→13, only Test Banana removed; TEST apples quantity "6" /
+  bought true preserved. Physical timestamp `2026-10-06T22:04:58.607Z`.
+
+Both physical screenshots show the meal plan, draft/history/rules sentinels,
+neighbor version 9, blank row and visible notes preserved. These are owner-driven
+live UI saves with screenshot readback, not a full workbook export comparison.
+The owner subsequently confirmed redeployment after the instruction to disable
+staging Vercel `MC_MEMBER_MEALS_EDIT`. Fresh API verification of read-only status
+at version 13 remains pending.
+
+The response-loss, restored-member write, and grocery add/remove cases supersede
+their pending entries above. Remaining work includes duplicate physical target
+ambiguity, independent backend ownership rejection, dashboard-off write rejection
+with edit gates enabled, anonymous/extended runtime checks and final workbook
+export comparison. Backend faults and legacy overlap need a separate safe test
+venue. None of this establishes production acceptance or Julie readiness.
