@@ -23,3 +23,11 @@ when that environment is prepared. No production token or data is copied.
 No identity is inferred from the Google account running the initializer.
 Authenticated staging provisioning and test Web App deployment are later steps.
 See `docs/member-meals-commissioning.md` for the runtime acceptance matrix.
+
+For the active-foreign-household test, run `prepareStagingNeighborTest` from the
+staging editor. It adds the synthetic `staging-neighbor` household only if absent,
+requires no neighbor memberships, preserves Meals and gates, and logs a minimized
+verification result with the Meals fingerprint. Repeated runs do not add duplicate
+households. This prepares a fixture; it does not execute the authenticated browser
+request or establish household-isolation acceptance. No Web App version promotion
+is required to run an editor helper.

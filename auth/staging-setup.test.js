@@ -34,3 +34,27 @@ test('staging workflow is manual and overrides target; production workflow exclu
  const production=fs.readFileSync(new URL('../.github/workflows/deploy-apps-script.yml',import.meta.url),'utf8');
  assert.match(staging,/workflow_dispatch/);assert.doesNotMatch(staging,/\n  push:/);assert.match(staging,/1dxTX6HWorvrR76H6idiNH2Q4BNsRo-U2YjtADfSjoXsPwd3OrfZLzDcV/);assert.doesNotMatch(staging,/clasp (deploy|update-deployment)/);assert.doesNotMatch(production,/StagingSetup/);
 });
+
+function neighborHarness({script='1dxTX6HWorvrR76H6idiNH2Q4BNsRo-U2YjtADfSjoXsPwd3OrfZLzDcV',sheet='18eft4EyxSy1lCtydd5dwuu20iMiJOBV0AAiHq4gu05Y'}={}){
+ const canonical=fs.readFileSync(new URL('../google_apps_script_Code.gs',import.meta.url),'utf8');
+ const h=createAppsScriptHarness({source:canonical+'\n'+source});
+ // Augment the existing Google service mock only; execute the real helper.
+ h.context.ScriptApp={getScriptId:()=>script};
+ const ss=h.context.SpreadsheetApp.getActive();ss.getId=()=>sheet;
+ h.context.console.log=()=>{};
+ h.properties.set('STAGING_INITIALIZED','true');
+ h.sheet('Households',[['householdId','status','name','createdAt','updatedAt','notes'],['butler-household','active','STAGING','','','']]);
+ h.sheet('Household Memberships',[['membershipId','householdId','userId','role','status','createdAt','updatedAt','notes']]);
+ h.sheet('Meals',[['key','householdId','schemaVersion','updatedAt','updatedBy','status','json','notes'],['butler-household','butler-household',1,'','','approved','{"version":10}','KEEP']]);
+ return h;
+}
+test('neighbor helper creates one active household, preserves Meals and memberships, and safely repeats',()=>{
+ const h=neighborHarness(),before=h.rows('Meals'),members=h.rows('Household Memberships');
+ assert.equal(h.call('prepareStagingNeighborTest').ok,true);assert.equal(h.call('prepareStagingNeighborTest').ok,true);
+ assert.equal(h.rows('Households').length,3);assert.deepEqual(h.rows('Meals'),before);assert.deepEqual(h.rows('Household Memberships'),members);assert.equal(h.held,false);
+});
+test('neighbor helper refuses wrong bindings, uninitialized sheets, memberships and duplicate households',()=>{
+ for(const change of [h=>{h.context.ScriptApp.getScriptId=()=> 'production';},h=>{h.context.SpreadsheetApp.getActive().getId=()=> 'production';},h=>h.properties.delete('STAGING_INITIALIZED'),h=>{const rows=h.rows('Household Memberships');rows.push(['test','staging-neighbor','test','secondary','active','','','']);h.sheet('Household Memberships',rows);},h=>{const rows=h.rows('Households');rows.push(['staging-neighbor','active','','','',''],['staging-neighbor','active','','','','']);h.sheet('Households',rows);}]){
+  const h=neighborHarness();change(h);assert.throws(()=>h.call('prepareStagingNeighborTest'),/STAGING_/);assert.equal(h.events.some(e=>e.type==='write'),false);assert.equal(h.held,false);
+ }
+});

@@ -87,7 +87,7 @@ export function createAppsScriptHarness({source = canonicalSource} = {}) {
   });
   vm.runInContext(source, context, {filename: "google_apps_script_Code.gs", timeout: 1000});
   return {
-    events, errors, properties, sheet,
+    context, events, errors, properties, sheet,
     setFault: callback => { fault = callback; },
     flush: () => context.SpreadsheetApp.flush(),
     get held() { return held; },
