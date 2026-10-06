@@ -91,3 +91,28 @@ existing state first. Directory preparation is not a ScriptLock transaction.
 Run only while the disposable staging directory is idle; GitHub runs share the
 existing staging-sheet concurrency group. Successful readback is required before
 Vercel key migration. No raw identity, email or credential data is logged.
+
+## Provisioning verified; migration and browser checks
+
+Run `37545753234` successfully created and read back the isolated synthetic
+secondary. Existing owner directory rows were preserved; Meals remained at v13.
+
+`check=migrate-clerk` changes only CLERK_SECRET_KEY and CLERK_PUBLISHABLE_KEY
+in the allowlisted staging project's Production environment. It requires current
+read-only gate policy and snapshots prior values in runner memory. Updates are
+read back before deployment; a failed key update attempts restoration and
+verification without requesting deployment. Snapshots and keys are never logged
+or retained as artifacts. It deploys exact workflow SHA from the fixed GitHub
+repository, waits for READY, and verifies the staging alias publishable key.
+Deployment or alias uncertainty stops without resending. This migration leaves
+existing owner's old Clerk subject unchanged; the automated secondary is the
+prepared account in the new application. A new human staging identity would
+need its own explicit directory binding. Production project keys are untouched.
+
+`check=browser` installs pinned Playwright and Chromium on the ephemeral runner,
+creates a sixty-second single-use sign-in ticket for only the marked synthetic
+user, signs in, and verifies the normal secondary iframe UI, read-only Meals v13,
+and principal diagnostics/legacy denial. It saves no browser profile, screenshots,
+trace, cookies or ticket artifacts and requests no Meals writes. Session creation
+is an authentication mutation, separate from read-only application operations.
+Successful provisioning alone does not prove browser or migration acceptance.
