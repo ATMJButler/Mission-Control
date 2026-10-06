@@ -2,6 +2,14 @@ name: Staging Google read-only check
 
 on:
   workflow_dispatch:
+    inputs:
+      check:
+        description: Read-only connection check
+        type: choice
+        default: google
+        options:
+          - google
+          - clerk
 
 permissions:
   contents: read
@@ -13,6 +21,7 @@ concurrency:
 
 jobs:
   read-staging:
+    if: inputs.check == 'google'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -36,3 +45,21 @@ jobs:
         env:
           STAGING_GOOGLE_ACCESS_TOKEN: ${{ steps.google.outputs.access_token }}
         run: node scripts/check-staging-google.mjs
+  check-clerk:
+    if: inputs.check == 'clerk'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require main branch
+        run: test "$GITHUB_REF" = "refs/heads/main"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Verify development Clerk keys without writes
+        env:
+          STAGING_CLERK_SECRET_KEY: ${{ secrets.STAGING_CLERK_SECRET_KEY }}
+          STAGING_CLERK_PUBLISHABLE_KEY: ${{ secrets.STAGING_CLERK_PUBLISHABLE_KEY }}
+        run: node scripts/check-staging-clerk.mjs
