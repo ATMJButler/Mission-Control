@@ -41,3 +41,36 @@ function initializeStagingTestData() {
     return 'Synthetic staging fixture ready. No identity provisioned; all write gates disabled.';
   } finally { lock.releaseLock(); }
 }
+
+// One-click fixture preparation. Does not change memberships, Meals or gates.
+function prepareStagingNeighborTest() {
+  if (ScriptApp.getScriptId() !== '1dxTX6HWorvrR76H6idiNH2Q4BNsRo-U2YjtADfSjoXsPwd3OrfZLzDcV') throw new Error('STAGING_SCRIPT_MISMATCH');
+  const ss = SpreadsheetApp.getActive();
+  if (!ss || ss.getId() !== '18eft4EyxSy1lCtydd5dwuu20iMiJOBV0AAiHq4gu05Y') throw new Error('STAGING_SHEET_MISMATCH');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    if (PropertiesService.getScriptProperties().getProperty('STAGING_INITIALIZED') !== 'true') throw new Error('STAGING_NOT_INITIALIZED');
+    const headers = ['householdId','status','name','createdAt','updatedAt','notes'];
+    const sh = identitySheet_('Households',headers);
+    const memberships = identityRows_('Household Memberships',['membershipId','householdId','userId','role','status','createdAt','updatedAt','notes']);
+    if (memberships.some(row => row.householdId === 'staging-neighbor')) throw new Error('STAGING_NEIGHBOR_HAS_MEMBERSHIP');
+    const prior = identityRows_('Households',headers).filter(row => row.householdId === 'staging-neighbor');
+    if (prior.length > 1 || (prior.length === 1 && prior[0].status !== 'active')) throw new Error('STAGING_NEIGHBOR_INVALID');
+    const meals = diagnosticsTable_('Meals',['key','householdId','schemaVersion','updatedAt','updatedBy','status','json','notes']);
+    if (!meals.headersValid) throw new Error('STAGING_MEALS_SCHEMA_INVALID');
+    const before = diagnosticsFingerprint_(meals.rows);
+    if (!prior.length) {
+      const now = new Date().toISOString();
+      sh.appendRow(['staging-neighbor','active','STAGING neighbor',now,now,'Synthetic household without memberships']);
+      SpreadsheetApp.flush();
+    }
+    const verified = identityRows_('Households',headers).filter(row => row.householdId === 'staging-neighbor' && row.status === 'active');
+    const after = diagnosticsTable_('Meals',['key','householdId','schemaVersion','updatedAt','updatedBy','status','json','notes']);
+    if (verified.length !== 1 || before !== diagnosticsFingerprint_(after.rows)) throw new Error('STAGING_READBACK_FAILED');
+    const result = {ok:true,evidenceClass:'staging-fixture-preparation-readback',neighborHouseholdActive:true,
+      neighborMembershipCount:0,mealsUnchanged:true,mealsFingerprint:before};
+    console.log(JSON.stringify(result));
+    return result;
+  } finally { lock.releaseLock(); }
+}
