@@ -41,3 +41,19 @@ No production spreadsheet, Julie identity, deployment change or gate flip is
 part of this workflow. Separate authorization flows are needed for browser
 test identity, Vercel gates, and any Apps Script management. Future mutation
 automation must preserve staging guards and reconcile uncertain writes.
+
+## Verified connection and Clerk preflight
+
+The second live Google workflow run, `37542846660`, succeeded on October 6, 2026:
+OIDC authentication and all physical fixture checks passed with no writes.
+The first run authenticated successfully but failed the Sheets read before the
+owner enabled the Sheets API. Detailed first-run logs were inaccessible here,
+so the precise original Sheets error was not independently read.
+
+The workflow now accepts `check=google` (default) or `check=clerk`. The Clerk job
+requires GitHub secrets `STAGING_CLERK_SECRET_KEY` and
+`STAGING_CLERK_PUBLISHABLE_KEY`, from the dedicated development application. It
+uses only GET requests to compare frontend/backend public signing keys and read
+a user count. It never prints API keys, raw user data, or frontend domain.
+Clerk preflight does not provision an account or change Vercel keys. Browser
+automation and staging directory migration remain separate pending work.

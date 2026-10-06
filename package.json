@@ -6,7 +6,7 @@
     "test:auth": "node auth/authorization.test.js && node auth/directory-model.test.js && node auth/legacy-sync-envelope.test.js && node auth/invitation-token.test.js && node auth/meals-approval.test.js && node auth/project-dispatch.test.js && node auth/project-dispatch-upstream.test.js && node auth/project-apps-script-contract.test.js && npm run test:project-runtime && npm run test:meals-runtime && npm run test:diagnostics && npm run test:money && npm run test:workspace && npm run test:member-projection && npm run test:family-calendar && npm run test:member-setup && npm run test:member-dashboard && npm run test:member-meals-edit",
     "test:project-runtime": "node --test auth/project-apps-script-runtime.test.js",
     "test:meals-runtime": "node --test auth/meals-save-runtime.test.js auth/meals-lock-runtime.test.js auth/meals-review.test.js",
-    "test:diagnostics": "node --test auth/diagnostics.test.js auth/staging-setup.test.js auth/staging-rejections.test.js auth/staging-readonly.test.js auth/staging-response-loss.test.js auth/staging-google.test.js",
+    "test:diagnostics": "node --test auth/diagnostics.test.js auth/staging-setup.test.js auth/staging-rejections.test.js auth/staging-readonly.test.js auth/staging-response-loss.test.js auth/staging-google.test.js auth/staging-clerk.test.js",
     "test:money": "node --test auth/money-accounts.test.js",
     "test:workspace": "node --test auth/workspace.test.js",
     "test:member-projection": "node --test auth/member-projection.test.js",
