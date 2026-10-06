@@ -83,6 +83,7 @@ jobs:
       - name: Verify exact staging Vercel project without writes
         env:
           STAGING_VERCEL_TOKEN: ${{ secrets.STAGING_VERCEL_TOKEN }}
+          STAGING_CLERK_PUBLISHABLE_KEY: ${{ secrets.STAGING_CLERK_PUBLISHABLE_KEY }}
         run: node scripts/check-staging-vercel.mjs
   prepare-identity:
     if: inputs.check == 'prepare-identity'
