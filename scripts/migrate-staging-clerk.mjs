@@ -10,7 +10,7 @@ export async function migrateStagingClerk({token,secretKey,publishableKey,sha,re
   const call=async(path,{method='GET',body}={})=>{
     let r;try{r=await request('https://api.vercel.com'+path+(path.includes('?')?'&':'?')+'teamId='+scope.teamId,{method,headers:{Authorization:`Bearer ${token}`,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(20000)});}
     catch{throw new Error('Vercel operation outcome uncertain; no automatic resend.');}
-    if(!r.ok)throw new Error(`Vercel operation failed (HTTP ${r.status}); response omitted.`);
+    if(!r.ok){let code='omitted';try{const body=await r.json();if(/^[a-zA-Z0-9_-]{1,80}$/.test(body.error?.code))code=body.error.code;}catch{}throw new Error(`Vercel operation failed (HTTP ${r.status}, code ${code}); response omitted.`);}
     if(r.status===204)return {};
     try{return await r.json();}catch{throw new Error('Vercel response unreadable; no automatic resend.');}
   };
@@ -33,6 +33,7 @@ export async function migrateStagingClerk({token,secretKey,publishableKey,sha,re
   if((typeof value('MC_MEMBER_DASHBOARD')==='string'&&value('MC_MEMBER_DASHBOARD')!=='enabled')||value('MC_MEMBER_MEALS_EDIT')==='enabled'||value('MC_MEMBER_SETUP')==='enabled'||value('MC_PROJECT_V1_DISPATCH')==='enabled')throw new Error('Read-only staging gate policy required before migration.');
   const replacements={CLERK_SECRET_KEY:secretKey,CLERK_PUBLISHABLE_KEY:publishableKey,MC_MEMBER_DASHBOARD:'enabled',MC_MEMBER_MEALS_EDIT:'disabled',MC_MEMBER_SETUP:'disabled',MC_PROJECT_V1_DISPATCH:'disabled'};
   const changed=[],backedUp=[];
+  let phase='preflight';
   const list=async()=>{const r=await call(`/v10/projects/${stagingProjectId}/env`);if(!Array.isArray(r.envs))throw new Error('Environment readback invalid.');return r.envs;};
   const marker='Mission Control isolated staging Clerk migration';
   try {
@@ -40,6 +41,7 @@ export async function migrateStagingClerk({token,secretKey,publishableKey,sha,re
       if(env.value===replacements[env.key])continue;
       const backupKey='MC_STAGING_PRIOR_'+env.key;
       if(production.some(e=>e.key===backupKey))throw new Error('Existing migration backup requires review before another change.');
+      phase='readable binding update';
       if(typeof env.value==='string'){
         changed.push(env);
         await call(`${base}/${env.id}`,{method:'PATCH',body:{value:replacements[env.key]}});
@@ -47,10 +49,13 @@ export async function migrateStagingClerk({token,secretKey,publishableKey,sha,re
         if(verified.value!==replacements[env.key])throw new Error('Staging key update readback mismatch.');
       }else{
         backedUp.push({...env,backupKey});
+        phase='server-side backup rename';
         await call(`${base}/${env.id}`,{method:'PATCH',body:{key:backupKey}});
         const renamed=(await list()).find(e=>e.id===env.id);
         if(renamed?.key!==backupKey)throw new Error('Server-side key backup readback mismatch.');
+        phase='replacement creation';
         await call(`/v10/projects/${stagingProjectId}/env`,{method:'POST',body:{key:env.key,value:replacements[env.key],target:['production'],type:'encrypted',comment:marker}});
+        phase='replacement readback';
         const created=(await list()).filter(e=>e.key===env.key&&e.target?.includes('production'));
         if(created.length!==1||created[0].comment!==marker)throw new Error('Replacement key binding ambiguous.');
         const verified=await call(`/v1/projects/${stagingProjectId}/env/${created[0].id}`);
@@ -75,7 +80,7 @@ export async function migrateStagingClerk({token,secretKey,publishableKey,sha,re
       await call(`${base}/${env.id}`,{method:'PATCH',body:{key:env.key}});
       if((await list()).find(e=>e.id===env.id)?.key!==env.key)throw new Error();
     }catch{restored=false;}}
-    throw new Error(restored?'Staging key update stopped; prior environment values restored. No deployment requested.':'Staging key update stopped; restoration requires review. No deployment requested.');
+    throw new Error((restored?'Staging key update stopped; prior environment values restored. No deployment requested.':'Staging key update stopped; restoration requires review. No deployment requested.')+` Phase ${phase}; ${error.message}`);
   }
   const deployment=await call('/v13/deployments',{method:'POST',body:{name:'mission-control-staging',project:stagingProjectId,target:'production',gitSource:{type:'github',repoId:1335188517,ref:'main',sha}}});
   if(!/^dpl_[A-Za-z0-9]+$/.test(deployment.id))throw new Error('Unexpected staging deployment response; do not resend.');
