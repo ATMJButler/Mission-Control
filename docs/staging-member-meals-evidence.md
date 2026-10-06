@@ -92,7 +92,38 @@ before the UI readback. It sends no mutation itself and never retries a write.
 
 Expected evidence: the UI reconciles through readback and displays quantity 6
 at version 11; physical Meals row 4 agrees, with other fields and neighbor row
-preserved. This runtime check is **pending**. Automated mocked tests verify the
+preserved. This runtime check subsequently passed as recorded below. Automated mocked tests verify the
 helper's guards, one-shot behavior, expiry and rejection passthrough. This is a
 client-discarded response simulation, not evidence of a real network outage or
 backend flush failure. Disable the staging edit gate after collecting evidence.
+
+## Completed client response-loss reconciliation
+
+The owner first observed editable capability false at version 10; the helper
+refused arming without writing. After both staging edit gates were enabled,
+the read-only preflight reported capability true and version 10. The owner
+armed the helper and saved the normal grocery editor once. Console evidence
+confirmed that a successful version 10→11 response was deliberately discarded.
+The owner confirmed the editor closed and the dashboard displayed six apples.
+
+The physical sheet screenshot confirms row G4 version 11, TEST apples quantity
+"6", bought true, and updatedAt `2026-10-06T21:56:22.919Z`. TEST Soup, the other
+six meals, draft/history/rules sentinels, blank row 3, neighbor version 9 and
+visible notes remain preserved. This is screenshot-based comparison, not a
+full exported-workbook comparison or network request-count trace. The outcome
+also demonstrates an authorized write after membership restoration. No real
+transport outage or backend flush fault was injected.
+
+The owner subsequently disabled staging Vercel `MC_MEMBER_MEALS_EDIT` and
+redeployed. This configuration restoration is owner-reported; a fresh read-only
+API checkpoint remains pending. Julie activation and production acceptance
+remain on hold.
+
+Next grocery add/remove acceptance, when staging editing is deliberately enabled:
+use the normal UI to add TEST bananas (quantity "1", bought false) while preserving
+apples (quantity "6", bought true). Save once: expected version 11→12. Confirm
+dashboard and physical row before continuing. Then remove only TEST bananas and
+save once: expected version 12→13. Confirm apples and all unrelated fields remain
+preserved, then return staging to read-only. Any unexpected version, failure or
+uncertain response requires readback and review before another write. This test
+is pending and must not be run while the edit gate is disabled.
