@@ -50,3 +50,27 @@ request, and stops on any unexpected response or changed content. It does not
 handle tokens, bypass auth, change gates or prove physical-row preservation.
 Finish with another XLSX comparison. All write outcomes still require reconciliation;
 never automatically retry an uncertain request.
+
+## Subsequent authenticated staging checkpoints
+
+Owner browser screenshots and the latest XLSX establish:
+
+| Test | Observed | Readback / limits |
+| --- | --- | --- |
+| Six invalid requests | Blank grocery name, numeric quantity, string bought flag, extra row authority, top-level actor, impossible calendar date each returned 400 MEMBER_SETUP_INVALID | Projected Meals identical at v10 after every attempt; later XLSX preserves blank/neighbor rows, meal plan, draft/history/rules/notes and baseline. No physical XLSX immediately before batch; previous export v9 plus contention screenshots anchor expected v10. |
+| Backend edit gate disabled, Vercel edit gate enabled | 503 MEMBER_MEALS_DISABLED | Owner sheet screenshot v10 / apples 5 / bought |
+| Vercel edit gate disabled, backend edit gate enabled | 503 MEMBER_MEALS_DISABLED | Same persisted state; an earlier DNS-resolution failure is excluded from gate evidence |
+| Backend dashboard gate disabled, Vercel dashboard gate enabled | 503 MEMBER_DASHBOARD_DISABLED | UI removed shared data |
+| Vercel dashboard gate disabled, backend dashboard gate enabled | 503 MEMBER_DASHBOARD_DISABLED | API denial; subsequent dashboard-gate restoration confirmed by owner |
+| Restore read-only viewing | TEST Soup and apples 5 / bought returned; editing remained off | Owner confirmation; production settings unchanged by this staging exercise |
+
+Gate isolation claims rely on owner-reported staging setting changes together
+with observed API behavior; no connector independently read Vercel environment
+configuration. Dashboard read denials do not establish dashboard-off write
+rejection while both edit gates are enabled; that remains a distinct test.
+
+The completed invalid-request and gate-read/edit cases supersede their pending
+entries above. Remaining acceptance work and production/Julie boundaries still
+apply. `staging/check-readonly-member.js` captures one read-only secondary checkpoint
+and verifies principal diagnostics and legacy data denial without printing payloads,
+identities or tokens. It does not modify fixtures, memberships or gates.
