@@ -57,3 +57,17 @@ uses only GET requests to compare frontend/backend public signing keys and read
 a user count. It never prints API keys, raw user data, or frontend domain.
 Clerk preflight does not provision an account or change Vercel keys. Browser
 automation and staging directory migration remain separate pending work.
+
+## Clerk verified and Vercel preflight
+
+Live Clerk run `37543695169` passed: development keys match, user count zero,
+no writes requested. The isolated account is ready for later test provisioning;
+no Vercel keys or directory records have been migrated.
+
+`check=vercel` requires `STAGING_VERCEL_TOKEN`. It verifies only project
+`prj_ZHEWWlU4WHHQRrvhHAXg4rGKcglf`, name `mission-control-staging`. If necessary
+it reads accessible team IDs to locate that exact project; it never lists or
+reads other projects. It reports the verified team ID without environment values
+or credentials. This preflight does not establish write permissions or deploy.
+The token itself may cover other team projects; the script's project allowlist
+is an application guard, not a claim of a project-scoped Vercel credential.

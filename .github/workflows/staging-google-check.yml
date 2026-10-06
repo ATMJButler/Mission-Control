@@ -10,6 +10,7 @@ on:
         options:
           - google
           - clerk
+          - vercel
 
 permissions:
   contents: read
@@ -63,3 +64,20 @@ jobs:
           STAGING_CLERK_SECRET_KEY: ${{ secrets.STAGING_CLERK_SECRET_KEY }}
           STAGING_CLERK_PUBLISHABLE_KEY: ${{ secrets.STAGING_CLERK_PUBLISHABLE_KEY }}
         run: node scripts/check-staging-clerk.mjs
+  check-vercel:
+    if: inputs.check == 'vercel'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require main branch
+        run: test "$GITHUB_REF" = "refs/heads/main"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Verify exact staging Vercel project without writes
+        env:
+          STAGING_VERCEL_TOKEN: ${{ secrets.STAGING_VERCEL_TOKEN }}
+        run: node scripts/check-staging-vercel.mjs
