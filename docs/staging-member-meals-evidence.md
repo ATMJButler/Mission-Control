@@ -152,3 +152,16 @@ ambiguity, independent backend ownership rejection, dashboard-off write rejectio
 with edit gates enabled, anonymous/extended runtime checks and final workbook
 export comparison. Backend faults and legacy overlap need a separate safe test
 venue. None of this establishes production acceptance or Julie readiness.
+
+## Final exported-workbook comparison and restored read-only API
+
+Owner Console evidence after edit-gate disablement confirms dashboard HTTP 200,
+capability mealsEdit false, Meals version 13, and expected 403 codes for both
+principal diagnostics and legacy principal data.
+
+Comparing the final `(3).xlsx` export with the version-10 `(2).xlsx` export:
+only Meals D4 and G4 differ. JSON changes are version, grocery list and root/
+approved timestamps. Version 13 contains only six bought TEST apples. All seven
+meal records, draft/history/rules, neighbor row, blank row, notes and every other
+exported tab are identical. This completes the pending full-export comparison;
+production acceptance and Julie readiness remain false.
