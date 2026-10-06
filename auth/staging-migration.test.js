@@ -23,6 +23,8 @@ function fixture({editing=false,losePatch=false,wrongProject=false,sensitive=fal
    const e=envs.find(e=>u.pathname.endsWith('/'+e.id));assert.ok(e);
    if(options.method==='DELETE'){envs.splice(envs.indexOf(e),1);body={};}
    else{if(options.method==='PATCH'){Object.assign(e,JSON.parse(options.body));if(losePatch){losePatch=false;throw new Error('Response lost');}}body=structuredClone(e);if(e.type==='sensitive')delete body.value;}
+  }else if(u.pathname==='/v2/deployments/dpl_fixture/aliases'){
+   assert.equal(JSON.parse(options.body).alias,'mission-control-staging.vercel.app');aliasDeployment='dpl_fixture';body={alias:'mission-control-staging.vercel.app'};
   }else if(u.pathname==='/v13/deployments')body={id:'dpl_fixture',readyState:'READY'};
   else throw new Error('Unexpected URL');
   return {ok:true,status:200,json:async()=>body};
