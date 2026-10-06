@@ -12,6 +12,8 @@ on:
           - clerk
           - vercel
           - prepare-identity
+          - migrate-clerk
+          - browser
 
 permissions:
   contents: read
@@ -109,3 +111,44 @@ jobs:
           STAGING_CLERK_SECRET_KEY: ${{ secrets.STAGING_CLERK_SECRET_KEY }}
           STAGING_CLERK_PUBLISHABLE_KEY: ${{ secrets.STAGING_CLERK_PUBLISHABLE_KEY }}
         run: node scripts/prepare-staging-identity.mjs
+  migrate-clerk:
+    if: inputs.check == 'migrate-clerk'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require main branch
+        run: test "$GITHUB_REF" = "refs/heads/main"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Migrate only staging Clerk keys and verify deployed alias
+        env:
+          STAGING_VERCEL_TOKEN: ${{ secrets.STAGING_VERCEL_TOKEN }}
+          STAGING_CLERK_SECRET_KEY: ${{ secrets.STAGING_CLERK_SECRET_KEY }}
+          STAGING_CLERK_PUBLISHABLE_KEY: ${{ secrets.STAGING_CLERK_PUBLISHABLE_KEY }}
+        run: node scripts/migrate-staging-clerk.mjs
+  browser:
+    if: inputs.check == 'browser'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require main branch
+        run: test "$GITHUB_REF" = "refs/heads/main"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install browser test runtime
+        run: npm install --no-save --package-lock=false playwright@1.58.2
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Verify signed-in secondary UI and access boundaries
+        env:
+          STAGING_CLERK_SECRET_KEY: ${{ secrets.STAGING_CLERK_SECRET_KEY }}
+          STAGING_CLERK_PUBLISHABLE_KEY: ${{ secrets.STAGING_CLERK_PUBLISHABLE_KEY }}
+        run: node scripts/check-staging-browser.mjs
