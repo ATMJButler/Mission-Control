@@ -4,7 +4,7 @@ import {migrateStagingClerk} from '../scripts/migrate-staging-clerk.mjs';
 import {stagingProjectId} from '../scripts/check-staging-vercel.mjs';
 const pk='pk_test_'+Buffer.from('synthetic-example.clerk.accounts.dev$').toString('base64'),sk='sk_test_NEW';
 function fixture({editing=false,losePatch=false,wrongProject=false,sensitive=false,loseCreate=false,sensitiveGates=false}={}) {
- const calls=[];
+ const calls=[];let aliasDeployment='dpl_previous';
  const envs=[['CLERK_SECRET_KEY','sk_test_OLD'],['CLERK_PUBLISHABLE_KEY','pk_test_OLD'],['MC_MEMBER_DASHBOARD','enabled'],['MC_MEMBER_MEALS_EDIT',editing?'enabled':'disabled']].map(([key,value],i)=>({id:'env_fixture'+i,key,value,target:['production'],type:'encrypted'}));
  if(sensitive)envs[0].type='sensitive';
  if(sensitiveGates)envs.filter(e=>e.key.startsWith('MC_')).forEach(e=>e.type='sensitive');
@@ -13,7 +13,7 @@ function fixture({editing=false,losePatch=false,wrongProject=false,sensitive=fal
   if(u.hostname==='api.clerk.com')body=u.pathname.endsWith('/count')?{total_count:1}:{keys:[{kid:'a',kty:'RSA',n:'public',e:'AQAB'}]};
   else if(u.hostname.endsWith('clerk.accounts.dev'))body={keys:[{kid:'a',kty:'RSA',n:'public',e:'AQAB'}]};
   else if(u.hostname==='mission-control-staging.vercel.app')body={ok:true,publishableKey:pk};
-  else if(u.pathname==='/v4/aliases/mission-control-staging.vercel.app')body={projectId:stagingProjectId,deploymentId:'dpl_previous'};
+  else if(u.pathname==='/v4/aliases/mission-control-staging.vercel.app')body={projectId:stagingProjectId,deploymentId:aliasDeployment};
   else if(u.pathname==='/v9/projects/'+stagingProjectId)body={id:stagingProjectId,name:wrongProject?'production':'mission-control-staging',accountId:'team_synthetic'};
   else if(u.pathname==='/v10/projects/'+stagingProjectId+'/env'){
    if(options.method==='POST'){const created={...JSON.parse(options.body),id:'env_created'+envs.length};envs.push(created);if(loseCreate){loseCreate=false;throw new Error('Lost create response');}body=created;}
@@ -31,7 +31,7 @@ function fixture({editing=false,losePatch=false,wrongProject=false,sensitive=fal
 }
 test('migration targets exact staging project, updates only two keys and verifies public alias',async()=>{
  const f=fixture(),report=await f.run();assert.equal(report.ready,true);assert.equal(report.mealsEditingEnabled,false);assert.ok(!JSON.stringify(report).includes(sk));
- const writes=f.calls.filter(c=>c.method!=='GET');assert.equal(writes.length,3);assert.ok(writes.slice(0,2).every(c=>c.url.includes(stagingProjectId+'/env/')));
+ const writes=f.calls.filter(c=>c.method!=='GET');assert.equal(writes.length,4);assert.ok(writes.slice(0,2).every(c=>c.url.includes(stagingProjectId+'/env/')));
  const deploy=JSON.parse(writes[2].body);assert.equal(deploy.project,stagingProjectId);assert.equal(deploy.gitSource.sha,'a'.repeat(40));assert.equal(f.envs[3].value,'disabled');
 });
 test('enabled editing or wrong project refuses migration before any write',async()=>{

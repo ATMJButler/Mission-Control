@@ -158,3 +158,18 @@ fails the key check, Vercel rollback to the recorded previous deployment is
 requested; this restores live deployment routing, not prior project environment
 values. The project environment keeps the intended new keys. No deployment
 rollback or credential restoration is claimed without observed evidence.
+
+### Explicit alias routing
+
+The first direct-update attempt (`37547110243`) produced an unreadable success
+response; handling now accepts empty successful operations. The corrected attempt
+(`37547718788`) encountered HTTP 422 on recovery, and the public alias check
+`37547517225` did not confirm the new key. Browser `37547574524` stopped during
+isolated sign-in before requesting Meals mutations. These runs do not prove
+completed migration.
+
+Migration now explicitly assigns only `mission-control-staging.vercel.app` using
+the deployment alias API, checks the alias's project and deployment IDs, and
+verifies the public Clerk key. Recovery uses the same narrow alias assignment
+back to the recorded previous deployment, avoiding assumptions about project
+rollback eligibility. This changes only the verified staging address.
