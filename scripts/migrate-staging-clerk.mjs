@@ -12,7 +12,7 @@ export async function migrateStagingClerk({token,secretKey,publishableKey,sha,re
     catch{throw new Error('Vercel operation outcome uncertain; no automatic resend.');}
     if(!r.ok){let code='omitted';try{const body=await r.json();if(/^[a-zA-Z0-9_-]{1,80}$/.test(body.error?.code))code=body.error.code;}catch{}throw new Error(`Vercel operation failed (HTTP ${r.status}, code ${code}); response omitted.`);}
     if(r.status===204)return {};
-    try{return await r.json();}catch{throw new Error('Vercel response unreadable; no automatic resend.');}
+    try{if(typeof r.text==='function'){const raw=await r.text();return raw?JSON.parse(raw):{};}return await r.json();}catch{throw new Error(`Vercel response unreadable for ${path.split('?')[0]}; no automatic resend.`);}
   };
   const base=`/v9/projects/${stagingProjectId}/env`;
   const listing=await call(`/v10/projects/${stagingProjectId}/env`);
@@ -61,7 +61,11 @@ export async function migrateStagingClerk({token,secretKey,publishableKey,sha,re
   }
   if(state.readyState!=='READY')throw new Error('Staging deployment readiness not confirmed; do not resend.');
   let cfg;
-  try{const r=await request('https://mission-control-staging.vercel.app/api/v1/auth-config',{method:'GET',cache:'no-store',signal:AbortSignal.timeout(20000)});if(r.ok)cfg=await r.json();}catch{}
+  for(let attempt=0;attempt<10;attempt++){
+    try{const r=await request('https://mission-control-staging.vercel.app/api/v1/auth-config',{method:'GET',cache:'no-store',signal:AbortSignal.timeout(20000)});if(r.ok)cfg=await r.json();}catch{}
+    if(cfg?.ok===true&&cfg.publishableKey===publishableKey)break;
+    await pause(1000);
+  }
   if(cfg?.ok!==true||cfg.publishableKey!==publishableKey){
     await call(`/v1/projects/${stagingProjectId}/rollback/${priorAlias.deploymentId}`,{method:'POST'});
     throw new Error('New staging alias key unconfirmed; rollback to previous deployment requested. Project environment retains the new desired keys.');
