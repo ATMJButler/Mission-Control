@@ -165,3 +165,16 @@ approved timestamps. Version 13 contains only six bought TEST apples. All seven
 meal records, draft/history/rules, neighbor row, blank row, notes and every other
 exported tab are identical. This completes the pending full-export comparison;
 production acceptance and Julie readiness remain false.
+
+## Automated staging identity and browser checkpoint
+
+After owner-assisted one-time credential/federation setup, automated preparation
+run `37545753234` created one isolated synthetic Clerk user and active secondary
+binding while preserving prior staging directory rows and Meals v13. Migration
+run `37548047535` verified the staging deployment and public alias use its new
+isolated Clerk keys with read-only gates. Browser run `37548147691` passed normal
+secondary UI routing, read-only v13/six apples display, no grocery edit action,
+and expected principal diagnostics/legacy API denials. This is automated live
+browser evidence, separate from earlier owner screenshots and offline tests.
+See `docs/staging-google-automation.md` for access restrictions and prior failed
+migration attempts. Julie and production commissioning remain on hold.

@@ -173,3 +173,29 @@ the deployment alias API, checks the alias's project and deployment IDs, and
 verifies the public Clerk key. Recovery uses the same narrow alias assignment
 back to the recorded previous deployment, avoiding assumptions about project
 rollback eligibility. This changes only the verified staging address.
+
+## Live automation acceptance — October 6, 2026
+
+The migration run [37548047535](https://github.com/ATMJButler/Mission-Control/actions/runs/37548047535)
+passed after explicit staging alias assignment. READY deployment and exact
+public alias use the isolated Clerk development keys; editing remains disabled.
+Earlier unsuccessful attempts and their limitations remain recorded above.
+
+The authenticated browser run [37548147691](https://github.com/ATMJButler/Mission-Control/actions/runs/37548147691)
+passed using pinned Playwright 1.58.2, Chromium, and the synthetic secondary's
+short-lived ticket. It verified normal secondary workspace routing, read-only
+Meals v13, visible six apples, absence of the grocery edit action, and expected
+principal diagnostics/legacy API denial. No browser profile or credentials were
+retained, and no Meals mutations were requested.
+
+These live checks are driven by GitHub automation rather than owner Console
+screenshots. They establish the authenticated staging browser capability; they
+do not complete remaining commissioning cases. Original owner directory rows
+remain unchanged, but their old Clerk subject is not a login in the new isolated
+instance. The runner uses only the synthetic secondary account. Production
+project keys and Julie identity/invitation remain outside this work.
+
+The final post-browser Sheets run [37548293865](https://github.com/ATMJButler/Mission-Control/actions/runs/37548293865)
+also passed every physical fixture check: version 13, six bought apples, TEST Soup
+and seven days, preserved draft/history/rules/notes, neighbor version 9, and blank
+row. It requested zero writes.
