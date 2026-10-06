@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import {migrateStagingClerk} from '../scripts/migrate-staging-clerk.mjs';
 import {stagingProjectId} from '../scripts/check-staging-vercel.mjs';
 const pk='pk_test_'+Buffer.from('synthetic-example.clerk.accounts.dev$').toString('base64'),sk='sk_test_NEW';
-function fixture({editing=false,losePatch=false,wrongProject=false,sensitive=false,loseCreate=false}={}) {
+function fixture({editing=false,losePatch=false,wrongProject=false,sensitive=false,loseCreate=false,sensitiveGates=false}={}) {
  const calls=[];
  const envs=[['CLERK_SECRET_KEY','sk_test_OLD'],['CLERK_PUBLISHABLE_KEY','pk_test_OLD'],['MC_MEMBER_DASHBOARD','enabled'],['MC_MEMBER_MEALS_EDIT',editing?'enabled':'disabled']].map(([key,value],i)=>({id:'env_fixture'+i,key,value,target:['production'],type:'encrypted'}));
  if(sensitive)envs[0].type='sensitive';
+ if(sensitiveGates)envs.filter(e=>e.key.startsWith('MC_')).forEach(e=>e.type='sensitive');
  const request=async(url,options)=>{
   calls.push({url,method:options.method,body:options.body});const u=new URL(url);let body;
   if(u.hostname==='api.clerk.com')body=u.pathname.endsWith('/count')?{total_count:1}:{keys:[{kid:'a',kty:'RSA',n:'public',e:'AQAB'}]};
@@ -14,7 +15,7 @@ function fixture({editing=false,losePatch=false,wrongProject=false,sensitive=fal
   else if(u.hostname==='mission-control-staging.vercel.app')body={ok:true,publishableKey:pk};
   else if(u.pathname==='/v9/projects/'+stagingProjectId)body={id:stagingProjectId,name:wrongProject?'production':'mission-control-staging',accountId:'team_synthetic'};
   else if(u.pathname==='/v10/projects/'+stagingProjectId+'/env'){
-   if(options.method==='POST'){const created={...JSON.parse(options.body),id:'env_created'};envs.push(created);if(loseCreate){loseCreate=false;throw new Error('Lost create response');}body=created;}
+   if(options.method==='POST'){const created={...JSON.parse(options.body),id:'env_created'+envs.length};envs.push(created);if(loseCreate){loseCreate=false;throw new Error('Lost create response');}body=created;}
    else body={envs:structuredClone(envs)};
   }
   else if(u.pathname.includes('/env/')){
@@ -46,4 +47,11 @@ test('sensitive original key is preserved server-side while replacement is read 
 test('uncertain replacement creation is reconciled and old sensitive binding restored',async()=>{
  const f=fixture({sensitive:true,loseCreate:true});await assert.rejects(f.run(),/prior environment values restored/);
  assert.equal(f.envs.find(e=>e.key==='CLERK_SECRET_KEY').value,'sk_test_OLD');assert.ok(!f.envs.some(e=>e.key.startsWith('MC_STAGING_PRIOR_')));assert.ok(!f.calls.some(c=>c.url.includes('/v13/deployments')));
+});
+
+test('hidden gate bindings are backed up and replaced with explicit read-only policy',async()=>{
+ const f=fixture({sensitive:true,sensitiveGates:true});const report=await f.run();assert.equal(report.ready,true);
+ assert.equal(f.envs.find(e=>e.key==='MC_MEMBER_DASHBOARD').value,'enabled');
+ assert.equal(f.envs.find(e=>e.key==='MC_MEMBER_MEALS_EDIT').value,'disabled');
+ assert.equal(f.envs.find(e=>e.key==='MC_STAGING_PRIOR_MC_MEMBER_MEALS_EDIT').value,'disabled');
 });

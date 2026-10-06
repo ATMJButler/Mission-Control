@@ -130,3 +130,13 @@ and restoring the original name. Original sensitive values are never downloaded.
 Backup bindings remain for recovery; they are not production-project changes.
 Gate values must still be readable and match the read-only policy, or migration
 stops before writing. No claim of successful live migration yet.
+
+The second attempt (`37546431078`) also stopped before writes: staging gate
+values were sensitive. The migration now backs up any non-readable selected
+binding server-side and explicitly creates enabled MEMBER_DASHBOARD, disabled
+MEMBER_MEALS_EDIT, and disabled setup/project dispatch bindings if those optional
+bindings already exist. Missing optional off-gates stay absent. Readable gates
+that contradict the agreed read-only policy still stop migration. This enforces
+the authorized read-only state instead of claiming hidden settings were read.
+New binding values are verified before requesting deployment; originals remain
+under staging backup names for recovery.
