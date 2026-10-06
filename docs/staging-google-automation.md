@@ -71,3 +71,23 @@ reads other projects. It reports the verified team ID without environment values
 or credentials. This preflight does not establish write permissions or deploy.
 The token itself may cover other team projects; the script's project allowlist
 is an application guard, not a claim of a project-scoped Vercel credential.
+
+## Synthetic identity preparation
+
+Live Vercel preflight `37545273598` verified the exact staging project and team
+`team_NCKrXGb6YeagAIddLKKnPuxo` without writes.
+
+`check=prepare-identity` deliberately uses a temporary Sheets read/write scope
+to provision one synthetic member in the isolated Clerk development instance
+and add one active secondary binding in the fixed staging workbook. It requires
+the version-13 Meals fixture, matching Clerk development keys, and an instance
+containing either zero users or only the marked automation user. It preserves
+existing owner rows and does not migrate their provider subjects. It does not
+invite Julie, create principals, change gates, or deploy Vercel.
+
+Existing matching automation records are read back rather than duplicated.
+Uncertain mutations are never automatically retried; a later explicit run reads
+existing state first. Directory preparation is not a ScriptLock transaction.
+Run only while the disposable staging directory is idle; GitHub runs share the
+existing staging-sheet concurrency group. Successful readback is required before
+Vercel key migration. No raw identity, email or credential data is logged.

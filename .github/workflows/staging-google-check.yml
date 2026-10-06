@@ -11,6 +11,7 @@ on:
           - google
           - clerk
           - vercel
+          - prepare-identity
 
 permissions:
   contents: read
@@ -81,3 +82,30 @@ jobs:
         env:
           STAGING_VERCEL_TOKEN: ${{ secrets.STAGING_VERCEL_TOKEN }}
         run: node scripts/check-staging-vercel.mjs
+  prepare-identity:
+    if: inputs.check == 'prepare-identity'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require main branch
+        run: test "$GITHUB_REF" = "refs/heads/main"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Obtain temporary staging fixture access
+        id: google
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: projects/280033790691/locations/global/workloadIdentityPools/mc-staging-github/providers/github-actions
+          service_account: mission-control-staging-tests@mission-control-staging-tests.iam.gserviceaccount.com
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/spreadsheets
+          access_token_lifetime: 600s
+          create_credentials_file: false
+      - name: Provision only the synthetic staging secondary
+        env:
+          STAGING_GOOGLE_ACCESS_TOKEN: ${{ steps.google.outputs.access_token }}
+          STAGING_CLERK_SECRET_KEY: ${{ secrets.STAGING_CLERK_SECRET_KEY }}
+          STAGING_CLERK_PUBLISHABLE_KEY: ${{ secrets.STAGING_CLERK_PUBLISHABLE_KEY }}
+        run: node scripts/prepare-staging-identity.mjs
