@@ -11,6 +11,7 @@ export async function migrateStagingClerk({token,secretKey,publishableKey,sha,re
     let r;try{r=await request('https://api.vercel.com'+path+(path.includes('?')?'&':'?')+'teamId='+scope.teamId,{method,headers:{Authorization:`Bearer ${token}`,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(20000)});}
     catch{throw new Error('Vercel operation outcome uncertain; no automatic resend.');}
     if(!r.ok)throw new Error(`Vercel operation failed (HTTP ${r.status}); response omitted.`);
+    if(r.status===204)return {};
     try{return await r.json();}catch{throw new Error('Vercel response unreadable; no automatic resend.');}
   };
   const base=`/v9/projects/${stagingProjectId}/env`;
@@ -25,24 +26,56 @@ export async function migrateStagingClerk({token,secretKey,publishableKey,sha,re
     const env=matches[0];
     if(env.target.length!==1||env.target[0]!=='production'||!/^[A-Za-z0-9_-]{6,}$/.test(env.id))throw new Error('Expected staging-only Production environment bindings.');
     const snapshot=await call(`/v1/projects/${stagingProjectId}/env/${env.id}`);
-    if(snapshot.key!==key||typeof snapshot.value!=='string')throw new Error('Cannot snapshot staging environment for safe restoration.');
+    if(snapshot.key!==key)throw new Error('Staging environment identity mismatch.');
+    if(typeof snapshot.value!=='string'&&!key.startsWith('CLERK_'))throw new Error('Cannot read staging gate policy. No changes requested.');
     selected.push({...env,value:snapshot.value});
   }
   const value=key=>selected.find(e=>e.key===key)?.value;
   if(value('MC_MEMBER_DASHBOARD')!=='enabled'||value('MC_MEMBER_MEALS_EDIT')==='enabled'||value('MC_MEMBER_SETUP')==='enabled'||value('MC_PROJECT_V1_DISPATCH')==='enabled')throw new Error('Read-only staging gate policy required before migration.');
   const replacements={CLERK_SECRET_KEY:secretKey,CLERK_PUBLISHABLE_KEY:publishableKey};
-  const changed=[];
+  const changed=[],backedUp=[];
+  const list=async()=>{const r=await call(`/v10/projects/${stagingProjectId}/env`);if(!Array.isArray(r.envs))throw new Error('Environment readback invalid.');return r.envs;};
+  const marker='Mission Control isolated staging Clerk migration';
   try {
     for(const env of selected.filter(e=>Object.hasOwn(replacements,e.key))){
       if(env.value===replacements[env.key])continue;
-      changed.push(env);
-      await call(`${base}/${env.id}`,{method:'PATCH',body:{value:replacements[env.key]}});
-      const verified=await call(`/v1/projects/${stagingProjectId}/env/${env.id}`);
-      if(verified.value!==replacements[env.key])throw new Error('Staging key update readback mismatch.');
+      const backupKey='MC_STAGING_PRIOR_'+env.key;
+      if(production.some(e=>e.key===backupKey))throw new Error('Existing migration backup requires review before another change.');
+      if(typeof env.value==='string'){
+        changed.push(env);
+        await call(`${base}/${env.id}`,{method:'PATCH',body:{value:replacements[env.key]}});
+        const verified=await call(`/v1/projects/${stagingProjectId}/env/${env.id}`);
+        if(verified.value!==replacements[env.key])throw new Error('Staging key update readback mismatch.');
+      }else{
+        backedUp.push({...env,backupKey});
+        await call(`${base}/${env.id}`,{method:'PATCH',body:{key:backupKey}});
+        const renamed=(await list()).find(e=>e.id===env.id);
+        if(renamed?.key!==backupKey)throw new Error('Server-side key backup readback mismatch.');
+        await call(`/v10/projects/${stagingProjectId}/env`,{method:'POST',body:{key:env.key,value:replacements[env.key],target:['production'],type:'encrypted',comment:marker}});
+        const created=(await list()).filter(e=>e.key===env.key&&e.target?.includes('production'));
+        if(created.length!==1||created[0].comment!==marker)throw new Error('Replacement key binding ambiguous.');
+        const verified=await call(`/v1/projects/${stagingProjectId}/env/${created[0].id}`);
+        if(verified.value!==replacements[env.key])throw new Error('Replacement key readback mismatch.');
+      }
     }
   } catch(error) {
     let restored=true;
     for(const env of changed){try{await call(`${base}/${env.id}`,{method:'PATCH',body:{value:env.value}});const verify=await call(`/v1/projects/${stagingProjectId}/env/${env.id}`);if(verify.value!==env.value)restored=false;}catch{restored=false;}}
+    for(const env of backedUp){try{
+      const current=await list(),original=current.find(e=>e.id===env.id);
+      if(original?.key===env.key)continue;
+      if(original?.key!==env.backupKey)throw new Error();
+      const created=current.filter(e=>e.key===env.key&&e.target?.includes('production'));
+      if(created.length>1)throw new Error();
+      if(created.length){
+        if(created[0].comment!==marker)throw new Error();
+        const verify=await call(`/v1/projects/${stagingProjectId}/env/${created[0].id}`);
+        if(verify.value!==replacements[env.key])throw new Error();
+        await call(`${base}/${created[0].id}`,{method:'DELETE'});
+      }
+      await call(`${base}/${env.id}`,{method:'PATCH',body:{key:env.key}});
+      if((await list()).find(e=>e.id===env.id)?.key!==env.key)throw new Error();
+    }catch{restored=false;}}
     throw new Error(restored?'Staging key update stopped; prior environment values restored. No deployment requested.':'Staging key update stopped; restoration requires review. No deployment requested.');
   }
   const deployment=await call('/v13/deployments',{method:'POST',body:{name:'mission-control-staging',project:stagingProjectId,target:'production',gitSource:{type:'github',repoId:1335188517,ref:'main',sha}}});

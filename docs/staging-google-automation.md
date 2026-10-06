@@ -116,3 +116,17 @@ and principal diagnostics/legacy denial. It saves no browser profile, screenshot
 trace, cookies or ticket artifacts and requests no Meals writes. Session creation
 is an authentication mutation, separate from read-only application operations.
 Successful provisioning alone does not prove browser or migration acceptance.
+
+### Sensitive-key compatibility
+
+Migration run `37546118353` stopped before writes because Vercel omitted the
+value of a sensitive key. The migration now preserves a non-readable original
+Clerk binding server-side as `MC_STAGING_PRIOR_CLERK_SECRET_KEY` (and the analogous
+publishable-key backup if needed), retaining its sensitivity and original value.
+It creates a separately marked replacement, reads back that value, and deploys
+only after both keys are ready. Failed creation is reconciled by reading metadata
+and the known replacement value before deleting only that marked replacement
+and restoring the original name. Original sensitive values are never downloaded.
+Backup bindings remain for recovery; they are not production-project changes.
+Gate values must still be readable and match the read-only policy, or migration
+stops before writing. No claim of successful live migration yet.
