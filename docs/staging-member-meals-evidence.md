@@ -74,3 +74,25 @@ entries above. Remaining acceptance work and production/Julie boundaries still
 apply. `staging/check-readonly-member.js` captures one read-only secondary checkpoint
 and verifies principal diagnostics and legacy data denial without printing payloads,
 identities or tokens. It does not modify fixtures, memberships or gates.
+
+## Read-only checkpoint and next simulated fault check
+
+Owner screenshots at `2026-10-06T21:44:04.906Z` show all four checks passing:
+secondary workspace 200, read-only member Meals 200 at version 10, principal
+diagnostics 403, and legacy principal data 403. Commissioning and Julie readiness
+remain false. Vercel edit gate remains disabled; both dashboard gates are enabled.
+
+`staging/arm-response-loss.js` prepares a one-shot client simulation. After the
+owner enables **staging** `MC_MEMBER_MEALS_EDIT=enabled` and redeploys, open the
+member dashboard and paste that file into the browser Console. It verifies an
+editable version-10 fixture, then arms for two minutes. In the normal grocery
+editor change TEST apples quantity 5 to 6, keep bought checked, and Save once.
+The helper discards only a successful version 10→11 response and restores fetch
+before the UI readback. It sends no mutation itself and never retries a write.
+
+Expected evidence: the UI reconciles through readback and displays quantity 6
+at version 11; physical Meals row 4 agrees, with other fields and neighbor row
+preserved. This runtime check is **pending**. Automated mocked tests verify the
+helper's guards, one-shot behavior, expiry and rejection passthrough. This is a
+client-discarded response simulation, not evidence of a real network outage or
+backend flush failure. Disable the staging edit gate after collecting evidence.
