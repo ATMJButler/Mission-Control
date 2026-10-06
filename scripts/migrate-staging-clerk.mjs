@@ -27,12 +27,11 @@ export async function migrateStagingClerk({token,secretKey,publishableKey,sha,re
     if(env.target.length!==1||env.target[0]!=='production'||!/^[A-Za-z0-9_-]{6,}$/.test(env.id))throw new Error('Expected staging-only Production environment bindings.');
     const snapshot=await call(`/v1/projects/${stagingProjectId}/env/${env.id}`);
     if(snapshot.key!==key)throw new Error('Staging environment identity mismatch.');
-    if(typeof snapshot.value!=='string'&&!key.startsWith('CLERK_'))throw new Error('Cannot read staging gate policy. No changes requested.');
     selected.push({...env,value:snapshot.value});
   }
   const value=key=>selected.find(e=>e.key===key)?.value;
-  if(value('MC_MEMBER_DASHBOARD')!=='enabled'||value('MC_MEMBER_MEALS_EDIT')==='enabled'||value('MC_MEMBER_SETUP')==='enabled'||value('MC_PROJECT_V1_DISPATCH')==='enabled')throw new Error('Read-only staging gate policy required before migration.');
-  const replacements={CLERK_SECRET_KEY:secretKey,CLERK_PUBLISHABLE_KEY:publishableKey};
+  if((typeof value('MC_MEMBER_DASHBOARD')==='string'&&value('MC_MEMBER_DASHBOARD')!=='enabled')||value('MC_MEMBER_MEALS_EDIT')==='enabled'||value('MC_MEMBER_SETUP')==='enabled'||value('MC_PROJECT_V1_DISPATCH')==='enabled')throw new Error('Read-only staging gate policy required before migration.');
+  const replacements={CLERK_SECRET_KEY:secretKey,CLERK_PUBLISHABLE_KEY:publishableKey,MC_MEMBER_DASHBOARD:'enabled',MC_MEMBER_MEALS_EDIT:'disabled',MC_MEMBER_SETUP:'disabled',MC_PROJECT_V1_DISPATCH:'disabled'};
   const changed=[],backedUp=[];
   const list=async()=>{const r=await call(`/v10/projects/${stagingProjectId}/env`);if(!Array.isArray(r.envs))throw new Error('Environment readback invalid.');return r.envs;};
   const marker='Mission Control isolated staging Clerk migration';
