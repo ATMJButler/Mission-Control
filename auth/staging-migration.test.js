@@ -13,6 +13,7 @@ function fixture({editing=false,losePatch=false,wrongProject=false,sensitive=fal
   if(u.hostname==='api.clerk.com')body=u.pathname.endsWith('/count')?{total_count:1}:{keys:[{kid:'a',kty:'RSA',n:'public',e:'AQAB'}]};
   else if(u.hostname.endsWith('clerk.accounts.dev'))body={keys:[{kid:'a',kty:'RSA',n:'public',e:'AQAB'}]};
   else if(u.hostname==='mission-control-staging.vercel.app')body={ok:true,publishableKey:pk};
+  else if(u.pathname==='/v4/aliases/mission-control-staging.vercel.app')body={projectId:stagingProjectId,deploymentId:'dpl_previous'};
   else if(u.pathname==='/v9/projects/'+stagingProjectId)body={id:stagingProjectId,name:wrongProject?'production':'mission-control-staging',accountId:'team_synthetic'};
   else if(u.pathname==='/v10/projects/'+stagingProjectId+'/env'){
    if(options.method==='POST'){const created={...JSON.parse(options.body),id:'env_created'+envs.length};envs.push(created);if(loseCreate){loseCreate=false;throw new Error('Lost create response');}body=created;}
@@ -39,19 +40,11 @@ test('enabled editing or wrong project refuses migration before any write',async
 test('uncertain key patch is restored and read back before stopping without deployment',async()=>{
  const f=fixture({losePatch:true});await assert.rejects(f.run(),/prior environment values restored/);assert.equal(f.envs[0].value,'sk_test_OLD');assert.equal(f.envs[1].value,'pk_test_OLD');assert.ok(!f.calls.some(c=>c.url.includes('/v13/deployments')));
 });
-test('sensitive original key is preserved server-side while replacement is read back',async()=>{
- const f=fixture({sensitive:true});const report=await f.run();assert.equal(report.ready,true);
- const backup=f.envs.find(e=>e.key==='MC_STAGING_PRIOR_CLERK_SECRET_KEY');assert.equal(backup.value,'sk_test_OLD');assert.equal(backup.type,'sensitive');
- assert.equal(f.envs.find(e=>e.key==='CLERK_SECRET_KEY').value,sk);
+test('sensitive keys and gates update directly with previous live deployment as recovery reference',async()=>{
+ const f=fixture({sensitive:true,sensitiveGates:true});const report=await f.run();assert.equal(report.ready,true);assert.equal(report.previousDeploymentId,'dpl_previous');
+ assert.equal(f.envs.length,4);assert.equal(f.envs.find(e=>e.key==='CLERK_SECRET_KEY').value,sk);assert.equal(f.envs.find(e=>e.key==='MC_MEMBER_MEALS_EDIT').value,'disabled');
+ assert.ok(!f.calls.some(c=>c.method==='DELETE'));assert.ok(!f.calls.some(c=>c.body&&JSON.parse(c.body).key?.startsWith('MC_STAGING_PRIOR_')));
 });
-test('uncertain replacement creation is reconciled and old sensitive binding restored',async()=>{
- const f=fixture({sensitive:true,loseCreate:true});await assert.rejects(f.run(),/prior environment values restored/);
- assert.equal(f.envs.find(e=>e.key==='CLERK_SECRET_KEY').value,'sk_test_OLD');assert.ok(!f.envs.some(e=>e.key.startsWith('MC_STAGING_PRIOR_')));assert.ok(!f.calls.some(c=>c.url.includes('/v13/deployments')));
-});
-
-test('hidden gate bindings are backed up and replaced with explicit read-only policy',async()=>{
- const f=fixture({sensitive:true,sensitiveGates:true});const report=await f.run();assert.equal(report.ready,true);
- assert.equal(f.envs.find(e=>e.key==='MC_MEMBER_DASHBOARD').value,'enabled');
- assert.equal(f.envs.find(e=>e.key==='MC_MEMBER_MEALS_EDIT').value,'disabled');
- assert.equal(f.envs.find(e=>e.key==='MC_STAGING_PRIOR_MC_MEMBER_MEALS_EDIT').value,'disabled');
+test('uncertain sensitive update does not deploy or claim the hidden environment value restored',async()=>{
+ const f=fixture({sensitive:true,losePatch:true});await assert.rejects(f.run(),/prior live deployment retained/);assert.ok(!f.calls.some(c=>c.url.includes('/v13/deployments')));
 });

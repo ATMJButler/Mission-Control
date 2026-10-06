@@ -140,3 +140,21 @@ that contradict the agreed read-only policy still stop migration. This enforces
 the authorized read-only state instead of claiming hidden settings were read.
 New binding values are verified before requesting deployment; originals remain
 under staging backup names for recovery.
+
+### Current recovery approach (supersedes backup-name attempts)
+
+Runs `37546626353` and `37546810268` rejected sensitive binding rename with HTTP
+400 BAD_REQUEST; original bindings were verified restored and no deployment
+was requested. The migration now updates values directly and records the
+current exact staging alias/deployment as the recovery reference. It never
+claims hidden old values were retrieved or restored. Readable prior values can
+be restored on update failure; hidden-value uncertainty stops with the prior
+live deployment retained and requires environment readback before another deploy.
+
+Successful API updates preserve sensitive types; hidden-value writes are finally
+verified through deployed key configuration and the authenticated browser test.
+The read-only desired gates are explicitly enforced. If the new public alias
+fails the key check, Vercel rollback to the recorded previous deployment is
+requested; this restores live deployment routing, not prior project environment
+values. The project environment keeps the intended new keys. No deployment
+rollback or credential restoration is claimed without observed evidence.
