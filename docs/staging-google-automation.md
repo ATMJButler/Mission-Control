@@ -199,3 +199,13 @@ The final post-browser Sheets run [37548293865](https://github.com/ATMJButler/Mi
 also passed every physical fixture check: version 13, six bought apples, TEST Soup
 and seven days, preserved draft/history/rules/notes, neighbor version 9, and blank
 row. It requested zero writes.
+
+## Apps Script release credential boundary after calendar review
+
+Sheets WIF/browser automation does not authorize Apps Script promotion. The
+staging Apps Script workflow now requires its own `STAGING_CLASPRC_JSON` and a
+protected `staging-apps-script` Environment. It never falls back to production's
+`CLASPRC_JSON`. Owner review and main-only rules are verified before credential
+use. Integration Environment creation was denied (HTTP 403); an owner must
+configure it and supply a credential whose Google identity has access only to
+the staging script. See [review remediation](calendar-review-remediation.md).

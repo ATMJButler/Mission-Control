@@ -3,39 +3,7 @@ name: Auth Contract Tests
 on:
   push:
     branches: [main]
-    paths:
-      - "auth/**"
-      - "api/v1/**"
-      - "api/sync.js"
-      - "api/meals.js"
-      - "package.json"
-      - "google_apps_script_Code.gs"
-      - "app-v5.html"
-      - "index.html"
-      - ".github/workflows/test-auth.yml"
-      - ".github/workflows/deploy-apps-script.yml"
-      - "scripts/stage-apps-script.mjs"
-      - "diagnostics*"
-      - "workspace-ui.js"
-      - "auth-ui.js"
-      - "sw.js"
   pull_request:
-    paths:
-      - "auth/**"
-      - "api/v1/**"
-      - "api/sync.js"
-      - "api/meals.js"
-      - "package.json"
-      - "google_apps_script_Code.gs"
-      - "app-v5.html"
-      - "index.html"
-      - ".github/workflows/test-auth.yml"
-      - ".github/workflows/deploy-apps-script.yml"
-      - "scripts/stage-apps-script.mjs"
-      - "diagnostics*"
-      - "workspace-ui.js"
-      - "auth-ui.js"
-      - "sw.js"
 
 permissions:
   contents: read

@@ -5,6 +5,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: mission-control-apps-script-staging
@@ -12,6 +13,7 @@ concurrency:
 
 jobs:
   deploy:
+    environment: staging-apps-script
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -31,17 +33,22 @@ jobs:
         with:
           node-version: "24"
 
+      - name: Verify staging Environment protection before using credentials
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/check-staging-release-policy.mjs
+
       - name: Install clasp
         run: npm install --global @google/clasp@3.4.1
 
       - name: Configure clasp
         env:
-          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          STAGING_CLASPRC_JSON: ${{ secrets.STAGING_CLASPRC_JSON }}
         run: |
-          test -n "$CLASPRC_JSON"
-          node -e 'try { const value = JSON.parse(process.env.CLASPRC_JSON); if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(); } catch { console.error("CLASPRC_JSON must contain a JSON object; credential contents omitted."); process.exit(1); }'
+          test -n "$STAGING_CLASPRC_JSON"
+          node -e 'try { const value = JSON.parse(process.env.STAGING_CLASPRC_JSON); if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(); } catch { console.error("STAGING_CLASPRC_JSON must contain a JSON object; credential contents omitted."); process.exit(1); }'
           umask 077
-          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+          printf '%s' "$STAGING_CLASPRC_JSON" > "$HOME/.clasprc.json"
 
       - name: Stage Apps Script source
         run: |

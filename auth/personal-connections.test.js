@@ -58,3 +58,31 @@ test('consolidated public route checks origin and role, derives ownership and re
  const state=new URL(consent.result.authorizationUrl).searchParams.get('state');const completed=await request({operation:'complete_connection',code:'code',state});assert.equal(completed.status,200);assert.ok(!JSON.stringify(completed.result).includes('SECRET'));
  f.revoke();assert.equal((await request({operation:'connections'})).status,403);assert.equal((await request({operation:'connections',householdId:'foreign'})).status,403);
 });
+
+test('selection keeps its checked snapshot across concurrent selection and reconnect',async t=>{
+ for(const reconnect of [false,true]){
+  const f=fixture(t);await f.connect();const underlying=f.deps.store;let armed=true;
+  f.deps.store=async body=>{const result=await underlying(body);if(armed&&!body.operation&&body.provider==='google'){armed=false;const current=f.records.get('google');const {openPersonalSecret,sealPersonalSecret}=await import('./personal-oauth.js');const aad=JSON.stringify(['personal-connection-v1','member','home','google','calendar']);const data=openPersonalSecret(current.ciphertext,process.env.MC_PERSONAL_ENCRYPTION_KEY,aad);data.calendars=[{id:'other',label:'Other'}];if(reconnect)data.accountId='new-account';f.records.set('google',{...current,version:current.version+1,ciphertext:sealPersonalSecret(data,process.env.MC_PERSONAL_ENCRYPTION_KEY,aad)});}return result;};
+  await assert.rejects(f.run({operation:'select_calendars',provider:'google',expectedVersion:3,calendarIds:['chosen']}),e=>e.code==='PERSONAL_CONNECTIONS_CONFLICT');assert.equal(f.records.get('google').version,4);
+ }
+});
+test('durable claim serializes rotating-token refresh before any external exchange',async t=>{
+ const f=fixture(t);await f.connect();const {openPersonalSecret,sealPersonalSecret}=await import('./personal-oauth.js');const aad=JSON.stringify(['personal-connection-v1','member','home','google','calendar']);const rec=f.records.get('google'),data=openPersonalSecret(rec.ciphertext,process.env.MC_PERSONAL_ENCRYPTION_KEY,aad);data.expiresAt=1;f.records.set('google',{...rec,ciphertext:sealPersonalSecret(data,process.env.MC_PERSONAL_ENCRYPTION_KEY,aad)});
+ let release,entered;const started=new Promise(r=>{entered=r;});const wait=new Promise(r=>{release=r;});let refreshes=0;
+ f.deps.exchange=async()=>{refreshes++;entered();await wait;return{accessToken:'rotated-access',refreshToken:'rotated-refresh',expiresAt:Date.now()+3600000};};
+ const first=f.run({operation:'list_calendars',provider:'google'});await started;await assert.rejects(f.run({operation:'list_calendars',provider:'google'}),e=>e.code==='PERSONAL_RECONNECT_REQUIRED');assert.equal(refreshes,1);release();await first;
+ const saved=openPersonalSecret(f.records.get('google').ciphertext,process.env.MC_PERSONAL_ENCRYPTION_KEY,aad);assert.equal(saved.refreshToken,'rotated-refresh');assert.equal(saved.refreshPending,false);
+});
+test('unknown claim commit stops refresh and key loss still permits owner disconnect',async t=>{
+ const f=fixture(t);await f.connect();const {openPersonalSecret,sealPersonalSecret}=await import('./personal-oauth.js');const aad=JSON.stringify(['personal-connection-v1','member','home','google','calendar']);const rec=f.records.get('google'),data=openPersonalSecret(rec.ciphertext,process.env.MC_PERSONAL_ENCRYPTION_KEY,aad);data.expiresAt=1;f.records.set('google',{...rec,ciphertext:sealPersonalSecret(data,process.env.MC_PERSONAL_ENCRYPTION_KEY,aad)});
+ const underlying=f.deps.store;f.deps.store=async body=>{const value=await underlying(body);if(body.operation==='save')throw Object.assign(Error('lost claim'),{code:'PERSONAL_CONNECTIONS_OUTCOME_UNKNOWN'});return value;};const before=f.exchanges;await assert.rejects(f.run({operation:'list_calendars',provider:'google'}),e=>e.code==='PERSONAL_CONNECTIONS_OUTCOME_UNKNOWN');assert.equal(f.exchanges,before);f.deps.store=underlying;
+ delete process.env.MC_PERSONAL_ENCRYPTION_KEY;delete process.env.MC_PERSONAL_CALLBACK_ORIGIN;const status=await f.run({operation:'connections'});assert.equal(status.connections[0].requiresReconnect,true);await f.run({operation:'disconnect_calendar',provider:'google',expectedVersion:f.records.get('google').version});assert.equal(f.records.get('google').ciphertext,'');
+});
+
+test('selection may advance only through its own claimed refresh and failed exchange is not repeated',async t=>{
+ for(const failed of [false,true]){
+  const f=fixture(t);await f.connect();const {openPersonalSecret,sealPersonalSecret}=await import('./personal-oauth.js');const aad=JSON.stringify(['personal-connection-v1','member','home','google','calendar']);const rec=f.records.get('google'),data=openPersonalSecret(rec.ciphertext,process.env.MC_PERSONAL_ENCRYPTION_KEY,aad);data.expiresAt=1;f.records.set('google',{...rec,ciphertext:sealPersonalSecret(data,process.env.MC_PERSONAL_ENCRYPTION_KEY,aad)});
+  if(failed){let refreshes=0;f.deps.exchange=async()=>{refreshes++;throw Error('lost exchange');};await assert.rejects(f.run({operation:'list_calendars',provider:'google'}));await assert.rejects(f.run({operation:'list_calendars',provider:'google'}),e=>e.code==='PERSONAL_RECONNECT_REQUIRED');assert.equal(refreshes,1);}
+  else{const result=await f.run({operation:'select_calendars',provider:'google',expectedVersion:3,calendarIds:['chosen']});assert.equal(result.connection.version,6);assert.deepEqual(result.connection.calendars,[{id:'chosen',label:'Home'}]);}
+ }
+});

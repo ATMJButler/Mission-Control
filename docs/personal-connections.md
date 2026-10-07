@@ -48,8 +48,12 @@ and retrieves all-day events in their original timezone. Pagination remains on
 fixed provider origins and paths, with bounded pages/events. Provider errors,
 limits and malformed data are unavailable rather than empty schedules. Refresh
 rechecks the immutable provider account and persists updated tokens with CAS.
-Concurrent refresh failures require reconnect/recovery; no uncertain token
-exchange or storage mutation is automatically retried. Membership and record
+A durable encrypted refresh-pending claim is saved with CAS before the provider
+refresh. Competing requests cannot refresh the same stored token. Completion
+saves against that exact claim version; external record changes conflict. A
+crash or uncertain claim/exchange leaves the claim pending and requires explicit
+reconnect/disconnect; the old refresh token is never automatically reused. No
+uncertain token exchange or storage mutation is automatically retried. Membership and record
 versions are rechecked after schedule reads to prevent returning a disconnected
 connection's stale response.
 
@@ -106,3 +110,26 @@ revoked membership, unknown save recovery and disconnect. Publish the staging
 backend version manually if Apps Script deployment authentication is unavailable.
 Email suggestions, iCloud support, household event sharing and production
 commissioning are later work and are not claimed by calendar tests.
+
+## Encryption-key backup and recovery
+
+Store the 32-byte encryption key in a secured secret manager with restricted
+access and an encrypted backup outside this repository/Sheet. Record which
+staging or production deployment owns it without recording its value in docs.
+Never regenerate a missing key just to make a readiness check pass.
+
+For ordinary rotation, disconnect the affected connections under the old key,
+verify ciphertext was cleared, then replace the key and explicitly reauthorize
+accounts. In-place ciphertext re-encryption is not currently implemented and
+must not be attempted with ad hoc row edits or blind writes. Consent initiated
+under the old key expires; start a fresh consent attempt after rotation.
+
+If the key is lost or ciphertext cannot be decrypted, status reports a saved
+connection needing recovery. The owner can disconnect using its current version
+without the old encryption key or callback configuration. Origin, verified
+identity, active membership, role, both connection gates and CAS still apply.
+This deliberately destroys that owner's saved ciphertext; it does not recover
+provider tokens or revoke provider-side consent. Revoke consent at the provider
+if needed, configure a new secured key, then reconnect. Test backup restoration
+and this disconnect/reconnect procedure on disposable staging records before
+storing any real long-lived production connection.
