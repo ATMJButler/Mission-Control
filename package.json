@@ -14,7 +14,7 @@
     "test:member-setup": "node --test auth/member-setup.test.js auth/member-setup-ui.test.js",
     "test:member-dashboard": "node --test auth/member-dashboard.test.js auth/member-dashboard-ui.test.js auth/member-ui-isolation.test.js",
     "test:member-meals-edit": "node --test auth/member-meals-edit.test.js auth/member-meals-editor.test.js",
-    "test:personal-schedule": "node --test auth/personal-schedule.test.js auth/personal-oauth.test.js"
+    "test:personal-schedule": "node --test auth/personal-schedule.test.js auth/personal-oauth.test.js auth/personal-connections-store.test.js auth/personal-provider.test.js auth/personal-connections.test.js"
   },
   "dependencies": {
     "@clerk/backend": "^2.17.0",

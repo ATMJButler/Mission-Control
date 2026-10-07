@@ -2,7 +2,7 @@ import {pathToFileURL} from 'node:url';
 
 export const stagingProjectId='prj_ZHEWWlU4WHHQRrvhHAXg4rGKcglf';
 
-export async function checkStagingVercel({token,publishableKey,request=fetch}) {
+export async function checkStagingVercel({token,publishableKey,inspectPersonalConfiguration=false,request=fetch}) {
   if (!token) throw new Error('STAGING_VERCEL_TOKEN is missing from GitHub secrets.');
   const read=async path=>{
     let response;
@@ -28,16 +28,26 @@ export async function checkStagingVercel({token,publishableKey,request=fetch}) {
     throw new Error('Vercel project identity does not match the staging allowlist. Stopped.');
   const teamId=project.body.accountId;
   if (!/^team_[a-zA-Z0-9]+$/.test(teamId)) throw new Error('Expected a team-owned staging project.');
+  let personalConfiguration;
+  if(inspectPersonalConfiguration){
+    if(teamId!=='team_NCKrXGb6YeagAIddLKKnPuxo')throw new Error('Staging team identity does not match the allowlist.');
+    const environment=await read(`/v9/projects/${stagingProjectId}/env?teamId=${teamId}&decrypt=false`);
+    if(!Array.isArray(environment.body?.envs))throw new Error('Staging configuration metadata could not be read; contents omitted.');
+    const required=['MC_PERSONAL_ENCRYPTION_KEY','MC_PERSONAL_CALLBACK_ORIGIN','MC_GOOGLE_CLIENT_ID','MC_GOOGLE_CLIENT_SECRET','MC_MICROSOFT_CLIENT_ID','MC_MICROSOFT_CLIENT_SECRET'];
+    const present=name=>environment.body.envs.some(e=>e.key===name&&Array.isArray(e.target)&&e.target.includes('production'));
+    personalConfiguration={missingNames:required.filter(name=>!present(name)),gateBindingPresent:present('MC_PERSONAL_CONNECTIONS')};
+  }
   let clerkAliasMatchesPreparedInstance;
   if(publishableKey){try{const r=await request('https://mission-control-staging.vercel.app/api/v1/auth-config',{method:'GET',cache:'no-store',signal:AbortSignal.timeout(20000)});const cfg=r.ok?await r.json():null;clerkAliasMatchesPreparedInstance=cfg?.ok===true&&cfg.publishableKey===publishableKey;}catch{clerkAliasMatchesPreparedInstance=false;}}
-  return {clerkAliasMatchesPreparedInstance,evidenceClass:'github-staging-vercel-read-only-preflight',projectId:stagingProjectId,projectName:'mission-control-staging',teamId,writesRequested:0,julieReady:false};
+  return {clerkAliasMatchesPreparedInstance,...(personalConfiguration?{personalConfiguration}:{}),evidenceClass:'github-staging-vercel-read-only-preflight',projectId:stagingProjectId,projectName:'mission-control-staging',teamId,writesRequested:0,julieReady:false};
 }
 
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href) {
   try {
-    const report=await checkStagingVercel({token:process.env.STAGING_VERCEL_TOKEN,publishableKey:process.env.STAGING_CLERK_PUBLISHABLE_KEY});
+    const report=await checkStagingVercel({token:process.env.STAGING_VERCEL_TOKEN,publishableKey:process.env.STAGING_CLERK_PUBLISHABLE_KEY,inspectPersonalConfiguration:true});
     console.log(JSON.stringify(report,null,2));
     console.log(`::notice title=Staging Vercel project verified::Project ${report.projectId}; team ${report.teamId}; isolated Clerk alias ${report.clerkAliasMatchesPreparedInstance}; writes requested 0.`);
+    console.log(`::notice title=Personal OAuth configuration inventory::Missing bindings: ${report.personalConfiguration.missingNames.join(', ')||'none'}; gate binding present ${report.personalConfiguration.gateBindingPresent}; values omitted.`);
   } catch(error) {
     console.error(`::error title=Staging Vercel check failed::${error.message}`);
     process.exitCode=1;

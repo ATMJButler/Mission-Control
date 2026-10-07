@@ -18,7 +18,7 @@ export function sealPersonalSecret(value,encryptionKey,context){
 }
 export function openPersonalSecret(value,encryptionKey,context){
   try{
-    if(!bounded(context)||typeof value!=='string'||value.length>16384||!/^[A-Za-z0-9_-]+$/.test(value))throw invalid();
+    if(!bounded(context)||typeof value!=='string'||value.length>40000||!/^[A-Za-z0-9_-]+$/.test(value))throw invalid();
     const bytes=Buffer.from(value,'base64url');if(bytes.length<29)throw invalid();
     const cipher=createDecipheriv('aes-256-gcm',key(encryptionKey),bytes.subarray(0,12));
     cipher.setAAD(Buffer.from(context));cipher.setAuthTag(bytes.subarray(12,28));
@@ -36,7 +36,7 @@ export function beginPersonalOAuth({provider,purpose,clientId,redirectUri,actor,
   const url=new URL(spec.authorization);
   url.searchParams.set('client_id',clientId);url.searchParams.set('redirect_uri',callback.href);
   url.searchParams.set('response_type','code');url.searchParams.set('state',state);
-  url.searchParams.set('scope',provider==='microsoft'?'offline_access '+spec.scopes[purpose]:spec.scopes[purpose]);
+  url.searchParams.set('scope',provider==='microsoft'?'openid email offline_access User.Read '+spec.scopes[purpose]:'openid email '+spec.scopes[purpose]);
   url.searchParams.set('code_challenge_method','S256');url.searchParams.set('code_challenge',createHash('sha256').update(verifier).digest('base64url'));
   if(provider==='google'){url.searchParams.set('access_type','offline');url.searchParams.set('prompt','consent');}
   return {authorizationUrl:url.href,nonce,expiresAt:payload.expiresAt};

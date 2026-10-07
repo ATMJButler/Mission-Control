@@ -30,7 +30,7 @@ export function installClerkIdentityAdapter(){
       if(!auth.userId)return null;
       const user=await client.users.getUser(auth.userId);
       const primary=user.emailAddresses.find(x=>x.id===user.primaryEmailAddressId)||user.emailAddresses[0];
-      return {provider:"clerk",subject:auth.userId,email:primary?.emailAddress||null,displayName:[user.firstName,user.lastName].filter(Boolean).join(" ")||user.username||null};
+      return {provider:"clerk",subject:auth.userId,sessionId:auth.sessionId,email:primary?.emailAddress||null,displayName:[user.firstName,user.lastName].filter(Boolean).join(" ")||user.username||null};
     }
   };
   return true;

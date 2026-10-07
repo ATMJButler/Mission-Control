@@ -49,3 +49,9 @@ jobs:
         with:
           node-version: "24"
       - run: npm run test:auth
+      - name: Install offline browser test runtime
+        run: |
+          npm install --no-save --package-lock=false playwright@1.58.2
+          npx playwright install --with-deps chromium
+      - name: Check personal calendar screens with synthetic data
+        run: node scripts/check-personal-browser.mjs

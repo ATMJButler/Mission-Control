@@ -5,7 +5,7 @@ export function renderMemberDashboard(root,dashboard,tab){
   const card=title=>{const section=doc.createElement('article');section.className='card';root.append(section);node(section,'h3',title);return section;};
   const money=value=>value===null?'Not available':new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(value);
   const missing=(section,label)=>node(section,'p',dashboard.sections[label]==='unavailable'?'This shared data could not be verified. Refresh or ask your household principal to check it.':'Nothing has been shared here yet.','muted');
-  if(tab==='schedule'){const section=card('Your schedule');node(section,'p','Calendar and email connections are not activated yet. No personal schedule is being loaded.');const link=node(section,'a','Review your connection choices');link.href='/member-setup.html';return;}
+  if(tab==='schedule'){const section=card('Your schedule');if(dashboard.capabilities?.personalSchedule){const target=node(section,'div','');target.id='personalSchedule';const link=node(section,'a','Manage calendars');link.href='/personal-connect.html';link.target='_top';node(section,'p','Calendar access is read-only. Email scheduling suggestions are not available yet.','muted');}else{node(section,'p','Calendar and email connections are not activated yet. No personal schedule is being loaded.');const link=node(section,'a','Review your connection choices');link.href='/member-setup.html';}return;}
   if(tab==='budget'){
     const section=card('Shared household budget');if(!dashboard.budget){missing(section,'budget');return;}
     node(section,'p','Planned amounts and spending by category.','muted');
