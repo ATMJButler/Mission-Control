@@ -27,7 +27,7 @@ async function choose(connection){
  if(pending||blocked)return;const mine=++generation,current=sessionKey();pending=true;get('connections').replaceChildren();get('connectionStatus').textContent='Reading your calendars…';
  try{const value=await api({operation:'list_calendars',provider:connection.provider});if(mine!==generation||sessionKey()!==current)return;
   chooser={provider:connection.provider,version:value.connection.version};
-  const card=node(get('connections'),'article','');card.className='card';node(card,'h2','Choose up to five calendars');const inputs=[];
+  const card=node(get('connections'),'article','');card.className='card';const heading=node(card,'h2','Choose up to five calendars');heading.tabIndex=-1;heading.focus();const inputs=[];
   for(const calendar of value.calendars){const label=node(card,'label','');const input=document.createElement('input');input.type='checkbox';input.checked=value.connection.calendars.some(c=>c.id===calendar.id);label.append(input);node(label,'span',calendar.label);inputs.push({input,id:calendar.id});}
   button(card,'Save calendar choices',()=>{const ids=inputs.filter(c=>c.input.checked).map(c=>c.id);if(ids.length>5){get('connectionStatus').textContent='Choose up to five calendars.';return;}change(()=>api({operation:'select_calendars',provider:connection.provider,expectedVersion:value.connection.version,calendarIds:ids}));});button(card,'Back',load);get('connectionStatus').textContent='Only these calendars will appear in your private schedule.';
  }catch(error){if(mine!==generation||sessionKey()!==current)return;get('connections').replaceChildren();get('connectionStatus').textContent=messages[error.code]||'Calendars could not be verified. Refresh to try again.';}
@@ -37,7 +37,7 @@ async function load({background=false}={}){
  const current=sessionKey();if(!current){clear('Sign in to manage your calendars.');return;}if(pending)return;
  if(background&&chooser){
   const draft=chooser,mine=++generation;pending=true;get('connectionStatus').textContent='Rechecking household access…';
-  try{const value=await api({operation:'connections'});if(mine!==generation||sessionKey()!==current)return;const connection=value.connections.find(c=>c.provider===draft.provider);blocked=!connection?.connected||connection.version!==draft.version;get('connectionStatus').textContent=blocked?'The connection changed. Use Back to reload before saving your choices.':'Your unsaved calendar choices are still here.';}
+  try{const value=await api({operation:'connections'});if(mine!==generation||sessionKey()!==current)return;const connection=value.connections.find(c=>c.provider===draft.provider);blocked=!connection?.connected||connection.requiresReconnect===true||connection.version!==draft.version;get('connectionStatus').textContent=blocked?'The connection changed. Use Back to reload before saving your choices.':'Your unsaved calendar choices are still here.';}
   catch(error){if(mine!==generation||sessionKey()!==current)return;blocked=true;if(error.accessDenied){clear('Household access could not be verified.');}else get('connectionStatus').textContent='Access could not be revalidated. Your unsaved choices are kept; refresh before saving.';}
   finally{if(mine===generation)pending=false;}return;
  }
