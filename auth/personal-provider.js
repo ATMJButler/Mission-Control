@@ -9,7 +9,7 @@ export function personalProviderConfiguration(provider){
 }
 async function jsonRequest(url,options,request){
  let response,body;try{response=await request(url,{...options,cache:'no-store',redirect:'error',signal:AbortSignal.timeout(15000)});body=await response.json();}catch{throw failure('PERSONAL_PROVIDER_UNAVAILABLE');}
- if(!response.ok)throw failure(response.status===401||response.status===403?'PERSONAL_RECONNECT_REQUIRED':'PERSONAL_PROVIDER_UNAVAILABLE');
+ if(!response.ok)throw failure(response.status===401||response.status===403||(response.status===400&&['invalid_grant','interaction_required','consent_required'].includes(body?.error))?'PERSONAL_RECONNECT_REQUIRED':'PERSONAL_PROVIDER_UNAVAILABLE');
  return body;
 }
 export async function exchangePersonalToken({provider,code,verifier,redirectUri,refreshToken},{request=fetch,now=Date.now()}={}){

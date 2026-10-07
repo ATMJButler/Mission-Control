@@ -3,3 +3,5 @@
 .card{overflow-wrap:anywhere}
 
 #mealEditor label{display:block;margin:12px 0}#mealEditor input[type=text]{display:block;width:100%;box-sizing:border-box;background:#07111f;color:#edf4fa;border:1px solid #688aae;border-radius:8px;font:inherit;padding:10px}#mealEditor button{margin:6px}#mealEditShared{white-space:pre-wrap;overflow-wrap:anywhere}#mealEditor input[type=checkbox]{width:22px;height:22px}
+
+#connections label{display:flex;align-items:center;gap:12px;min-height:48px;margin:8px 0;cursor:pointer}#connections input[type=checkbox]{width:24px;height:24px;flex-shrink:0}#connections button{margin:6px 6px 6px 0}

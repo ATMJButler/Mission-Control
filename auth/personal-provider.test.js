@@ -29,3 +29,8 @@ test('token exchange uses fixed endpoint, PKCE and requires durable refresh acce
  assert.deepEqual(await exchangePersonalToken({provider:'google',code:'code',verifier:'verifier',redirectUri:'https://offline.invalid/callback'},{request,now:1000}),{accessToken:'access',refreshToken:'refresh',expiresAt:3601000});
  await assert.rejects(exchangePersonalToken({provider:'google',code:'code'},{request:async()=>response({access_token:'access',expires_in:3600})}),e=>e.code==='PERSONAL_RECONNECT_REQUIRED');
 });
+
+test('invalid_grant and revoked consent request reconnect without exposing provider detail',async t=>{
+ const keys=['MC_GOOGLE_CLIENT_ID','MC_GOOGLE_CLIENT_SECRET'];const old=Object.fromEntries(keys.map(k=>[k,process.env[k]]));process.env.MC_GOOGLE_CLIENT_ID='client';process.env.MC_GOOGLE_CLIENT_SECRET='secret';t.after(()=>{for(const k of keys){if(old[k]===undefined)delete process.env[k];else process.env[k]=old[k];}});
+ await assert.rejects(exchangePersonalToken({provider:'google',refreshToken:'refresh'},{request:async()=>new Response(JSON.stringify({error:'invalid_grant',error_description:'PRIVATE_DETAIL'}),{status:400})}),e=>e.code==='PERSONAL_RECONNECT_REQUIRED'&&!e.message.includes('PRIVATE_DETAIL'));
+});
