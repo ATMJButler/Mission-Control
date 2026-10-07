@@ -26,6 +26,7 @@ function doPost(e){try{
   if(body.resource==="member_meals_edit")return json_(editMemberMeals_(body));
   if(body.resource==="member_dashboard")return json_(readMemberDashboard_(body));
   if(body.resource==="member_setup")return json_(memberSetup_(body));
+  if(body.resource==="personal_connections")return json_(personalConnections_(body));
   if(body.resource==="system_diagnostics"){
     rejectUnknownFields_(body,["token","resource","operation","householdId","actor"]);
     if(body.operation!=="read")throw new Error("DIAGNOSTICS_READ_ONLY");
@@ -390,7 +391,7 @@ function readMemberDashboard_(body){
     memberSetupAuthority_(body);
     const budget=memberBudgetRead_(body.householdId),meals=memberMealsRead_(body.householdId),family=memberFamilyRead_(body.householdId);
     const setup=memberSetupRecord_(body);
-    return{ok:true,memberMealsEditEnabled:PropertiesService.getScriptProperties().getProperty('MEMBER_MEALS_EDIT')==='enabled',householdId:body.householdId,budgetSnapshot:budget.value,meals:meals.value,familyResources:family.value,profile:setup.record?setup.record.profile:null,sections:{budget:budget.state,meals:meals.state,family:family.state}};
+    return{ok:true,personalConnectionsEnabled:PropertiesService.getScriptProperties().getProperty('PERSONAL_CONNECTIONS')==='enabled',memberMealsEditEnabled:PropertiesService.getScriptProperties().getProperty('MEMBER_MEALS_EDIT')==='enabled',householdId:body.householdId,budgetSnapshot:budget.value,meals:meals.value,familyResources:family.value,profile:setup.record?setup.record.profile:null,sections:{budget:budget.state,meals:meals.state,family:family.state}};
   }finally{lock.releaseLock()}
 }
 
@@ -433,4 +434,41 @@ function editMemberMeals_(body){
     return{ok:true,previousVersion:current.version,newVersion:next.version};
   }catch(error){if(writing)throw new Error('MEMBER_MEALS_OUTCOME_UNKNOWN');throw error}
   finally{try{if(writing)SpreadsheetApp.flush()}catch(_e){console.error('Member Meals cleanup flush failed')}finally{lock.releaseLock()}}
+}
+
+// Provider tokens are encrypted in Vercel before reaching this private store.
+const PERSONAL_CONNECTION_HEADERS=['userId','householdId','provider','purpose','schemaVersion','version','ciphertext','consentNonce','consentExpiresAt','updatedAt'];
+function personalConnections_(body){
+  if(PropertiesService.getScriptProperties().getProperty('PERSONAL_CONNECTIONS')!=='enabled')throw new Error('PERSONAL_CONNECTIONS_DISABLED');
+  const saving=body.operation==='save',consuming=body.operation==='consume';
+  rejectUnknownFields_(body,['token','resource','operation','actor','householdId','provider','purpose'].concat(saving?['expectedVersion','ciphertext','nonce','expiresAt']:consuming?['nonce']:[]));
+  const blob=v=>typeof v==='string'&&v.length<=40000&&(v===''||/^[A-Za-z0-9_-]+$/.test(v));
+  const nonce=v=>v===''||(typeof v==='string'&&/^[A-Za-z0-9_-]{43}$/.test(v));
+  if(!['read','save','consume'].includes(body.operation)||!['google','microsoft'].includes(body.provider)||!['calendar','email'].includes(body.purpose)||
+    (saving&&(!Number.isSafeInteger(body.expectedVersion)||body.expectedVersion<0||body.expectedVersion>=Number.MAX_SAFE_INTEGER||!blob(body.ciphertext)||!nonce(body.nonce)||!Number.isSafeInteger(body.expiresAt)||body.expiresAt<0||(body.nonce===''?body.expiresAt!==0:body.expiresAt<=Date.now()||body.expiresAt>Date.now()+600000)))||
+    (consuming&&(!nonce(body.nonce)||!body.nonce)))throw new Error('PERSONAL_CONNECTIONS_INVALID');
+  const lock=LockService.getScriptLock();lock.waitLock(30000);let writing=false;
+  try{
+    memberSetupAuthority_(body);
+    let sheet=SpreadsheetApp.getActive().getSheetByName('Personal Connections'),record=null;
+    if(sheet){
+      if(sheet.getRange(1,1,1,PERSONAL_CONNECTION_HEADERS.length).getValues()[0].map(String).join('|')!==PERSONAL_CONNECTION_HEADERS.join('|'))throw new Error('PERSONAL_CONNECTIONS_SCHEMA_INVALID');
+      const rows=sheet.getLastRow()>1?sheet.getRange(2,1,sheet.getLastRow()-1,PERSONAL_CONNECTION_HEADERS.length).getValues():[];
+      const matches=[];rows.forEach((row,index)=>{if(row[0]===body.actor&&row[1]===body.householdId&&row[2]===body.provider&&row[3]===body.purpose)matches.push({row:row,sheetRow:index+2})});
+      if(matches.length>1)throw new Error('PERSONAL_CONNECTIONS_SCHEMA_INVALID');
+      record=matches[0]||null;
+      if(record&&(record.row[4]!==1||!Number.isSafeInteger(record.row[5])||record.row[5]<1||!blob(record.row[6])||!nonce(record.row[7])||!Number.isSafeInteger(record.row[8])||record.row[8]<0||(record.row[7]===''&&record.row[8]!==0)))throw new Error('PERSONAL_CONNECTIONS_SCHEMA_INVALID');
+    }
+    const current=record?{version:record.row[5],ciphertext:record.row[6],nonce:record.row[7],expiresAt:record.row[8]}:{version:0,ciphertext:'',nonce:'',expiresAt:0};
+    if(body.operation==='read')return{ok:true,record:current};
+    if(saving&&body.expectedVersion!==current.version)throw new Error('PERSONAL_CONNECTIONS_CONFLICT');
+    if(consuming&&(body.nonce!==current.nonce||current.expiresAt<=Date.now()))throw new Error('PERSONAL_CONNECTIONS_CONSENT_EXPIRED');
+    if(current.version>=Number.MAX_SAFE_INTEGER-1)throw new Error('PERSONAL_CONNECTIONS_SCHEMA_INVALID');
+    const next={version:current.version+1,ciphertext:saving?body.ciphertext:current.ciphertext,nonce:saving?body.nonce:'',expiresAt:saving?body.expiresAt:0};
+    writing=true;
+    if(!sheet){sheet=SpreadsheetApp.getActive().insertSheet('Personal Connections');sheet.getRange(1,1,1,PERSONAL_CONNECTION_HEADERS.length).setValues([PERSONAL_CONNECTION_HEADERS])}
+    sheet.getRange(record?record.sheetRow:Math.max(sheet.getLastRow()+1,2),1,1,PERSONAL_CONNECTION_HEADERS.length).setValues([[body.actor,body.householdId,body.provider,body.purpose,1,next.version,next.ciphertext,next.nonce,next.expiresAt,new Date().toISOString()]]);
+    SpreadsheetApp.flush();return{ok:true,record:next};
+  }catch(error){if(writing)throw new Error('PERSONAL_CONNECTIONS_OUTCOME_UNKNOWN');throw error}
+  finally{try{if(writing)SpreadsheetApp.flush()}catch(_e){console.error('Personal connection cleanup flush failed')}finally{lock.releaseLock()}}
 }

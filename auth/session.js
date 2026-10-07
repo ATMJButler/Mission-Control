@@ -11,5 +11,5 @@ export async function requireVerifiedIdentity(req){
   if(!identity||!identity.provider||!identity.subject){
     const e=new Error("Authentication required."); e.code="UNAUTHENTICATED"; e.statusCode=401; throw e;
   }
-  return {provider:String(identity.provider),subject:String(identity.subject),email:identity.email?String(identity.email):null,displayName:identity.displayName?String(identity.displayName):null};
+  return {provider:String(identity.provider),subject:String(identity.subject),email:identity.email?String(identity.email):null,displayName:identity.displayName?String(identity.displayName):null,...(typeof identity.sessionId==='string'&&identity.sessionId?{sessionId:identity.sessionId}:{})};
 }
