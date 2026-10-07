@@ -89,8 +89,8 @@ export async function handlePersonalConnection(body,{actor,householdId,sessionId
  for(const provider of providers){
   const initial=await load(provider);if(!initial.data||!initial.data.calendars.length){connections.push(view(provider,initial.record,initial.data));continue;}
   const {record,data}=await ready(provider,initial);connections.push(view(provider,record,data));
-  for(const calendar of data.calendars){const rows=await events({provider,accessToken:data.accessToken,calendar,start,end});for(const event of rows)schedule.push({...event,id:JSON.stringify([provider,calendar.id,event.id]),provider});if(schedule.length>2000)throw failure('PERSONAL_PROVIDER_LIMIT');}
-  await recheck(provider,record);
+  const calendarEvents=await Promise.all(data.calendars.map(calendar=>events({provider,accessToken:data.accessToken,calendar,start,end})));
+  for(let index=0;index<data.calendars.length;index++){const calendar=data.calendars[index];for(const event of calendarEvents[index])schedule.push({...event,id:JSON.stringify([provider,calendar.id,event.id]),provider});if(schedule.length>2000)throw failure('PERSONAL_PROVIDER_LIMIT');}
  }
  for(const connection of connections)await recheck(connection.provider,{version:connection.version});
  schedule.sort((a,b)=>a.start.localeCompare(b.start)||a.id.localeCompare(b.id));

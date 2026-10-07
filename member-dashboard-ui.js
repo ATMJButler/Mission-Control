@@ -5,13 +5,13 @@ const get=id=>document.getElementById(id);
 const sessionKey=()=>window.Clerk?.isSignedIn&&window.Clerk.user?.id&&window.Clerk.session?.id?window.Clerk.user.id+':'+window.Clerk.session.id:null;
 const editor=createMemberMealsEditor({refresh:()=>load(),status:message=>{get('status').textContent=message;}});
 const personalSchedule=createPersonalSchedule();
-let generation=0,key=null,pending=false,dashboard=null,tab='schedule',listening=false;
+let generation=0,key=null,pending=false,dashboard=null,tab='schedule',listening=false,lastLoadStarted=0;
 function clear(message){personalSchedule.reset();editor.reset();generation++;key=null;pending=false;dashboard=null;tab='schedule';get('panel').replaceChildren();get('tabs').hidden=true;get('status').textContent=message;get('refresh').disabled=!sessionKey();}
 function render(){if(!dashboard)return;personalSchedule.reset();get('tabs').hidden=false;for(const button of get('tabs').querySelectorAll('button'))button.setAttribute('aria-pressed',String(button.dataset.tab===tab));renderMemberDashboard(get('panel'),dashboard,tab);if(tab==='meals')editor.actions(get('panel'),dashboard);if(tab==='schedule'&&dashboard.capabilities?.personalSchedule)personalSchedule.mount(get('personalSchedule'),dashboard.profile?.preferences?.timeZone||'America/Chicago');}
 async function load(){
  const currentKey=sessionKey();if(!currentKey){clear('Sign in to continue.');return;}
  if(currentKey!==key){clear('Checking household access…');key=currentKey;}if(pending)return;
- const current=++generation;pending=true;get('refresh').disabled=true;get('status').textContent='Reading your shared workspace…';
+ lastLoadStarted=Date.now();const current=++generation;pending=true;get('refresh').disabled=true;get('status').textContent='Reading your shared workspace…';
  // Clear prior data before refresh: revoked access cannot leave a stale panel.
  personalSchedule.reset();get('panel').replaceChildren();get('tabs').hidden=true;
  try{
@@ -27,4 +27,4 @@ async function load(){
 get('refresh').onclick=load;for(const button of get('tabs').querySelectorAll('button'))button.onclick=()=>{tab=button.dataset.tab;render();};
 window.addEventListener('mc-signed-out',()=>clear('Sign in to continue.'));
 window.addEventListener('mc-authenticated',()=>{if(!listening){listening=true;window.Clerk.addListener(()=>{if(sessionKey()!==key){clear('Checking household access…');load();}});}if(sessionKey()!==key)load();});
-setInterval(()=>{if(!document.hidden)load();},60000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)load();});
+setInterval(()=>{if(!document.hidden)load();},60000);document.addEventListener('visibilitychange',()=>{if(!document.hidden&&Date.now()-lastLoadStarted>=60000)load();});
