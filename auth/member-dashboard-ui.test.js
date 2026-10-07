@@ -42,3 +42,19 @@ test('transport uncertainty preserves local edits for explicit reconciliation',a
  unavailable=true;f.elements.refresh.onclick();await f.settle();
  assert.equal(f.editorResets.length,before);assert.equal(f.elements.panel.children.length,0);
 });
+test('returning to the tab immediately does not restart the schedule load',async()=>{
+ const f=browser(()=>response(dashboard()));f.authenticate();await f.settle();
+ f.documentEvents.get('visibilitychange')();await f.settle();assert.equal(f.calls.length,1);
+ // The periodic membership check remains active.
+ f.intervals[0]();await f.settle();assert.equal(f.calls.length,2);
+});
+test('schedule timeout replaces loading text and reset aborts obsolete reads',async()=>{
+ const root={children:[],replaceChildren(){this.children=[];},append(item){this.children.push(item);}};
+ root.ownerDocument={createElement(){return{children:[],append(item){this.children.push(item);}};}};
+ const timers=[],signals=[],clerk={isSignedIn:true,user:{id:'u'},session:{id:'s'}};
+ const ctx=vm.createContext({window:{Clerk:clerk},AbortController,setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout(){},fetch:(_url,options)=>{signals.push(options.signal);return new Promise((_resolve,reject)=>options.signal.addEventListener('abort',()=>reject(Error('Aborted'))));}});
+ vm.runInContext(fs.readFileSync(new URL('../personal-schedule-ui.js',import.meta.url),'utf8').replace('export function','function')+'\nthis.schedule=createPersonalSchedule();',ctx);
+ const loading=ctx.schedule.mount(root);assert.match(root.children[0].textContent,/Reading/);
+ timers[0]();await loading;assert.match(root.children[0].textContent,/could not be verified/);
+ const obsolete=ctx.schedule.mount(root);ctx.schedule.reset();assert.equal(signals[1].aborted,true);await obsolete;
+});

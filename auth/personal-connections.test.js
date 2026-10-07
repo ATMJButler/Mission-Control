@@ -86,3 +86,9 @@ test('selection may advance only through its own claimed refresh and failed exch
   else{const result=await f.run({operation:'select_calendars',provider:'google',expectedVersion:3,calendarIds:['chosen']});assert.equal(result.connection.version,6);assert.deepEqual(result.connection.calendars,[{id:'chosen',label:'Home'}]);}
  }
 });
+test('selected calendar reads overlap and retain final connection validation',async t=>{
+ const f=fixture(t);await f.connect();await f.run({operation:'select_calendars',provider:'google',expectedVersion:3,calendarIds:['chosen','other']});
+ const started=[],releases=[];f.deps.events=({calendar})=>{started.push(calendar.id);return new Promise(resolve=>releases.push(resolve));};
+ const reading=f.run({operation:'personal_schedule'});for(let i=0;i<8;i++)await new Promise(resolve=>setImmediate(resolve));
+ assert.deepEqual(started,['chosen','other']);releases.forEach(resolve=>resolve([]));assert.deepEqual((await reading).schedule,[]);
+});
