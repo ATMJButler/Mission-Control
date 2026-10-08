@@ -17,9 +17,9 @@ function show(connections){
   else node(card,'p','This provider is not configured yet.');
  }
 }
-async function change(action){
+async function change(action,{successMessage}={}){
  if(pending||blocked||!sessionKey())return;chooser=null;const mine=++generation,current=sessionKey();pending=true;get('connectionStatus').textContent='Updating your connection…';get('connections').replaceChildren();
- try{const result=await action();if(mine!==generation||sessionKey()!==current)return;if(result?.navigate){location.assign(result.navigate);return;}pending=false;await load();}
+ try{const result=await action();if(mine!==generation||sessionKey()!==current)return;if(result?.navigate){location.assign(result.navigate);return;}pending=false;await load();if(successMessage&&!blocked&&sessionKey()===current)get('connectionStatus').textContent=successMessage;}
  catch(error){if(mine!==generation||sessionKey()!==current)return;blocked=true;get('connections').replaceChildren();get('connectionStatus').textContent=messages[error.code]||'The change could not be verified. Refresh connections before continuing.';}
  finally{if(mine===generation)pending=false;}
 }
@@ -29,7 +29,11 @@ async function choose(connection){
   chooser={provider:connection.provider,version:value.connection.version};
   const card=node(get('connections'),'article','');card.className='card';const heading=node(card,'h2','Choose up to five calendars');heading.tabIndex=-1;heading.focus();const inputs=[];
   for(const calendar of value.calendars){const label=node(card,'label','');const input=document.createElement('input');input.type='checkbox';input.checked=value.connection.calendars.some(c=>c.id===calendar.id);label.append(input);node(label,'span',calendar.label);inputs.push({input,id:calendar.id});}
-  button(card,'Save calendar choices',()=>{const ids=inputs.filter(c=>c.input.checked).map(c=>c.id);if(ids.length>5){get('connectionStatus').textContent='Choose up to five calendars.';return;}change(()=>api({operation:'select_calendars',provider:connection.provider,expectedVersion:value.connection.version,calendarIds:ids}));});button(card,'Back',load);get('connectionStatus').textContent='Only these calendars will appear in your private schedule.';
+  const feedback=node(card,'p','');feedback.id='calendarSelectionFeedback';feedback.setAttribute('role','status');feedback.setAttribute('aria-live','polite');
+  const save=button(card,'Save calendar choices',()=>{const ids=inputs.filter(c=>c.input.checked).map(c=>c.id);if(ids.length>5){updateSelection();return;}change(()=>api({operation:'select_calendars',provider:connection.provider,expectedVersion:value.connection.version,calendarIds:ids}),{successMessage:'Calendar choices saved. Open Your workspace to see your schedule.'});});save.setAttribute('aria-describedby',feedback.id);
+  function updateSelection(){const count=inputs.filter(c=>c.input.checked).length;save.disabled=count>5;feedback.textContent=count>5?`${count} calendars selected. Uncheck ${count-5} to save; the limit is five.`:`${count} of 5 calendars selected. You can save these choices.`;}
+  for(const {input}of inputs)input.addEventListener('change',updateSelection);updateSelection();
+  button(card,'Back',load);get('connectionStatus').textContent='Only these calendars will appear in your private schedule.';
  }catch(error){if(mine!==generation||sessionKey()!==current)return;get('connections').replaceChildren();get('connectionStatus').textContent=messages[error.code]||'Calendars could not be verified. Refresh to try again.';}
  finally{if(mine===generation)pending=false;}
 }
