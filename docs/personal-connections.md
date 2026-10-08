@@ -68,7 +68,7 @@ No events are automatically shared. Email consent URLs are prepared separately,
 but public email connection/suggestion actions remain unavailable pending the
 email milestone.
 
-## Staging configuration still required
+## Staging configuration
 
 Keep gates off until the staging Apps Script version containing this store has
 been promoted and exact source verified. Production settings and Julie's
@@ -133,3 +133,35 @@ provider tokens or revoke provider-side consent. Revoke consent at the provider
 if needed, configure a new secured key, then reconnect. Test backup restoration
 and this disconnect/reconnect procedure on disposable staging records before
 storing any real long-lived production connection.
+
+## Google-first staging commissioning checkpoint
+
+Operator evidence on 2026-10-07 confirms the isolated staging account can load
+its household workspace, complete Google consent, save five calendar choices,
+and read live events in America/Chicago. The operator checked timed and all-day
+dates against Google Calendar and reported they matched. These observations do
+not establish Microsoft readiness, provider revocation, expired-token refresh,
+production OAuth verification, or Julie onboarding.
+
+The calendar picker reports the count and over-limit explanation next to Save,
+disables over-limit saves, and confirms saved choices. The schedule explicitly
+asks for reconnect when the provider returns expired/revoked consent. Automated
+checks cover invalid_grant, provider denial, refresh claims/rotation, failed
+exchange recovery, disconnect erasure, concurrent disconnect during a read,
+unknown save readback, and account isolation. Desktop/phone browser checks cover
+limit feedback and removal of previous events on a reconnect-required response.
+
+Before calling Google-first priority 1 complete, record these live outcomes:
+
+1. Local Disconnect, schedule no longer loads old events, reconnect, reselect,
+   and schedule reads return.
+2. Revoke this staging application's consent in the connected Google account,
+   request a fresh schedule, observe unavailable/reconnect rather than old or
+   empty-success data, then reconnect and reselect successfully.
+3. After an access token naturally expires, explicitly refresh the schedule and
+   verify reads resume without another consent prompt. Keep the encryption key
+   unchanged. Do not edit ciphertext or token timestamps to simulate expiry in
+   the live account; synthetic tests already cover forced expiry paths.
+
+The Google OAuth application remains in Testing. Its refresh tokens may expire
+in seven days; production consent configuration is a separate release task.
