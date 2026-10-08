@@ -15,11 +15,13 @@ try{
  for(const profile of [{name:'desktop',viewport:{width:1366,height:900}},{name:'phone',viewport:{width:390,height:844},isMobile:true,hasTouch:true}]){
  const context=await browser.newContext({viewport:profile.viewport,isMobile:profile.isMobile||false,hasTouch:profile.hasTouch||false,locale:'en-US'});await context.addInitScript(()=>{window.__mcIntervals=[];const interval=window.setInterval;window.setInterval=(fn,ms)=>{window.__mcIntervals.push(fn);return interval(fn,ms);};window.Clerk={isSignedIn:true,user:{id:'synthetic'},session:{id:'session'},listeners:[],addListener(fn){this.listeners.push(fn);fn();}};});
  await context.route('**/auth-ui.js',route=>route.fulfill({contentType:'text/javascript',body:"window.addEventListener('DOMContentLoaded',()=>{document.getElementById('mcAuthGate').style.display='none';window.dispatchEvent(new Event('mc-authenticated'));});"}));
- const calls=[];let version=3,connected=true,selected=[],lost=false,personalReply=null,recovery=false,scheduleFailure=false;
+ const calls=[];let version=3,connected=true,selected=[],lost=false,personalReply=null,recovery=false,scheduleFailure=false,listDenied=false;
  await context.route('**/api/v1/member',async route=>{
   const body=route.request().postDataJSON();calls.push(body);let value;
   const connection=()=>({provider:'google',version,connected,requiresReconnect:recovery,accountLabel:connected?'synthetic@example.com':null,calendars:selected,configured:true});
   if(body.operation==='connections')value={ok:true,connections:[connection(),{provider:'microsoft',version:0,connected:false,accountLabel:null,calendars:[],configured:false}]};
+  else if(body.operation==='connect_calendar')value={ok:true,authorizationUrl:'https://accounts.google.com/o/oauth2/v2/auth?synthetic=true'};
+  else if(body.operation==='list_calendars'&&listDenied){await route.fulfill({status:503,json:{ok:false,code:'PERSONAL_RECONNECT_REQUIRED'}});return;}
   else if(body.operation==='list_calendars')value={ok:true,connection:connection(),calendars:Array.from({length:6},(_,i)=>({id:'calendar-'+i,label:'Calendar '+i}))};
   else if(body.operation==='select_calendars'){selected=body.calendarIds.map(id=>({id,label:'Calendar '+id.split('-')[1]}));version++;value={ok:true,connection:connection()};}
   else if(body.operation==='disconnect_calendar'){connected=false;selected=[];version++;if(lost){await route.fulfill({status:503,json:{ok:false,code:'PERSONAL_CONNECTIONS_OUTCOME_UNKNOWN'}});return;}value={ok:true,connection:connection()};}
@@ -29,8 +31,11 @@ try{
   else throw Error('Unexpected browser operation');
   await route.fulfill({json:value});
  });
+ await context.route('https://accounts.google.com/**',route=>route.fulfill({contentType:'text/html',body:'<p>Synthetic Google consent</p>'}));
  const page=await context.newPage();await page.goto(origin+'/personal-connect.html?code=synthetic-code&state=synthetic-state');await page.getByRole('button',{name:'Choose calendars'}).waitFor();assert.equal(new URL(page.url()).search,'');assert.equal(calls.filter(c=>c.operation==='complete_connection').length,1);
  await page.evaluate(()=>{window.__mcConnectionCard=document.querySelector('#connections article');document.dispatchEvent(new Event('visibilitychange'));});await page.waitForTimeout(100);assert.equal(await page.evaluate(()=>window.__mcConnectionCard===document.querySelector('#connections article')),true);
+ listDenied=true;await page.getByRole('button',{name:'Choose calendars'}).click();await page.getByText('Reconnect this account to restore calendar access.',{exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'Choose calendars'}).count(),0);await page.getByRole('button',{name:'Reconnect account'}).click();await page.waitForURL('https://accounts.google.com/**');assert.equal(calls.filter(c=>c.operation==='connect_calendar').length,1);
+ listDenied=false;await page.goto(origin+'/personal-connect.html?code=recovery-code&state=recovery-state');await page.getByRole('button',{name:'Choose calendars'}).waitFor();assert.equal(calls.filter(c=>c.operation==='complete_connection').length,2);
  await page.getByRole('button',{name:'Choose calendars'}).click();await page.getByRole('button',{name:'Save calendar choices'}).waitFor();
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  await page.getByLabel('Calendar 0',{exact:true}).check();
