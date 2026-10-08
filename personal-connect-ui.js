@@ -60,8 +60,11 @@ async function load({background=false,force=false}={}){
  chooser=null;
  if(key&&key!==current)callback=null;key=current;const mine=++generation;pending=true;if(!preserve){get('connections').replaceChildren();get('connectionStatus').textContent='Checking your connections…';}
  try{
-  if(callback){const saved=callback;callback=null;if(saved.cancelled)get('connectionStatus').textContent='Calendar consent was cancelled.';else await api({operation:'complete_connection',code:saved.code,state:saved.state});}
-  const value=await api({operation:'connections'});if(mine!==generation||sessionKey()!==current)return;const next=JSON.stringify(value.connections);if(!preserve||next!==connectionSnapshot){show(value.connections);get('connectionStatus').textContent='Your saved calendar choices are private. Google or Microsoft access is checked when calendars are read.';}connectionSnapshot=next;blocked=false;
+  let consentMessage=null,completed=null;
+  if(callback){const saved=callback;callback=null;if(saved.cancelled)consentMessage='Calendar consent was cancelled. Your saved connection was not changed.';else completed=(await api({operation:'complete_connection',code:saved.code,state:saved.state})).connection;}
+  const value=await api({operation:'connections'});
+  if(completed){const verified=value.connections.find(item=>item.provider===completed.provider);if(!verified?.connected||verified.version!==completed.version)throw Object.assign(Error('Changed'),{code:'PERSONAL_CONNECTIONS_CONFLICT'});consentMessage=`${completed.provider==='google'?'Google Calendar':'Microsoft / Outlook'} connected successfully. Choose calendars to load your schedule.`;}
+  if(mine!==generation||sessionKey()!==current)return;const next=JSON.stringify(value.connections);if(!preserve||next!==connectionSnapshot){show(value.connections);get('connectionStatus').textContent='Your saved calendar choices are private. Google or Microsoft access is checked when calendars are read.';}connectionSnapshot=next;blocked=false;if(consentMessage)get('connectionStatus').textContent=consentMessage;
  }catch(error){if(mine!==generation||sessionKey()!==current)return;connectionSnapshot=null;get('connections').replaceChildren();blocked=true;get('connectionStatus').textContent=messages[error.code]||'Connections could not be verified. Refresh or check your household access.';}
  finally{if(mine===generation)pending=false;}
 }

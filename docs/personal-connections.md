@@ -169,8 +169,9 @@ in seven days; production consent configuration is a separate release task.
 Additional operator evidence: local Google disconnect stopped schedule reads and
 reconnect/reselection restored events. Revoking Mission Control Staging consent
 in Google produced the explicit reconnect message and removed agenda events on
-a fresh schedule read. Reconnection after provider revocation and natural
-access-token expiry still require live confirmation. The connection-management
+a fresh schedule read. The operator then reauthorized Google, reselected calendars, and confirmed
+events loaded again, completing live recovery after provider revocation. Natural
+access-token expiry still requires live confirmation. The connection-management
 page shows saved account metadata; that alone does not verify provider access.
 
 Navigation preserves the existing agenda DOM within the current signed-in page,
@@ -178,3 +179,9 @@ including an in-flight read when switching workspace sections. It does not use
 browser storage. Explicit Refresh, changed dashboard data, denied/uncertain
 access, sign-out, and account changes invalidate it. Unchanged background
 connection checks likewise retain account cards instead of clearing the page.
+
+Successful consent now displays an explicit provider connection confirmation
+after matching the completed connection version to fresh connection readback.
+Cancelled consent retains its cancellation message and performs no completion
+exchange. These messages persist through unchanged background checks; later
+reads are still required to establish current provider access.
