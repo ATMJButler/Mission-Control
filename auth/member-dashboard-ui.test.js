@@ -58,3 +58,14 @@ test('schedule timeout replaces loading text and reset aborts obsolete reads',as
  timers[0]();await loading;assert.match(root.children[0].textContent,/could not be verified/);
  const obsolete=ctx.schedule.mount(root);ctx.schedule.reset();assert.equal(signals[1].aborted,true);await obsolete;
 });
+test('background access checks preserve the current panel while pending and after unchanged readback',async()=>{
+ let release;let delayed=false;const f=browser(()=>delayed?new Promise(resolve=>{release=resolve;}):response(dashboard()));
+ f.authenticate();await f.settle();const panel=f.elements.panel.children[0],renders=f.renders.length;
+ delayed=true;f.intervals[0]();await f.settle();assert.equal(f.elements.panel.children[0],panel);assert.equal(f.elements.tabs.hidden,false);
+ release(response(dashboard()));await f.settle();assert.equal(f.renders.length,renders);assert.equal(f.elements.panel.children[0],panel);
+});
+test('changed background dashboard reprojects data; denied access clears the preserved view',async()=>{
+ let next=dashboard();const f=browser(()=>next instanceof Response?next:response(next));f.authenticate();await f.settle();
+ next={...dashboard(),budget:{planned:600}};f.intervals[0]();await f.settle();assert.equal(f.renders.at(-1).data.budget.planned,600);
+ next=new Response(JSON.stringify({ok:false,code:'MEMBERSHIP_INACTIVE_OR_MISSING'}),{status:403});f.intervals[0]();await f.settle();assert.equal(f.elements.panel.children.length,0);assert.equal(f.elements.tabs.hidden,true);
+});
