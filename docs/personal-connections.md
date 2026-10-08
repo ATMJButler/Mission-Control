@@ -165,3 +165,16 @@ Before calling Google-first priority 1 complete, record these live outcomes:
 
 The Google OAuth application remains in Testing. Its refresh tokens may expire
 in seven days; production consent configuration is a separate release task.
+
+Additional operator evidence: local Google disconnect stopped schedule reads and
+reconnect/reselection restored events. Revoking Mission Control Staging consent
+in Google produced the explicit reconnect message and removed agenda events on
+a fresh schedule read. Reconnection after provider revocation and natural
+access-token expiry still require live confirmation. The connection-management
+page shows saved account metadata; that alone does not verify provider access.
+
+Navigation preserves the existing agenda DOM within the current signed-in page,
+including an in-flight read when switching workspace sections. It does not use
+browser storage. Explicit Refresh, changed dashboard data, denied/uncertain
+access, sign-out, and account changes invalidate it. Unchanged background
+connection checks likewise retain account cards instead of clearing the page.

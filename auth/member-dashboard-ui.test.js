@@ -5,7 +5,7 @@ import fs from 'node:fs';
 const dashboard=(startView='budget')=>({profile:{preferences:{step:6,startView}},budget:{planned:500,spent:200,remaining:300,categories:[]},meals:null,family:[],sections:{budget:'available',meals:'missing',family:'available'}});
 const response=value=>new Response(JSON.stringify({ok:true,dashboard:value}));
 function browser(transport){
- const elements=Object.fromEntries(['panel','tabs','status','refresh'].map(id=>[id,{children:[],textContent:'',hidden:false,disabled:false,replaceChildren(){this.children=[];},querySelectorAll(){return buttons;}}]));
+ const elements=Object.fromEntries(['panel','tabs','status','refresh'].map(id=>[id,{children:[],textContent:'',hidden:false,disabled:false,get childNodes(){return this.children;},replaceChildren(...children){this.children=children;},querySelectorAll(){return buttons;}}]));
  const buttons=['schedule','budget','meals','family'].map(tab=>({dataset:{tab},setAttribute(k,v){this[k]=v;}}));
  const events=new Map(),documentEvents=new Map(),intervals=[],calls=[],renders=[],editorResets=[];
  const clerk={isSignedIn:true,user:{id:'u1'},session:{id:'s1'},listeners:[],addListener(fn){this.listeners.push(fn);}};
@@ -68,4 +68,10 @@ test('changed background dashboard reprojects data; denied access clears the pre
  let next=dashboard();const f=browser(()=>next instanceof Response?next:response(next));f.authenticate();await f.settle();
  next={...dashboard(),budget:{planned:600}};f.intervals[0]();await f.settle();assert.equal(f.renders.at(-1).data.budget.planned,600);
  next=new Response(JSON.stringify({ok:false,code:'MEMBERSHIP_INACTIVE_OR_MISSING'}),{status:403});f.intervals[0]();await f.settle();assert.equal(f.elements.panel.children.length,0);assert.equal(f.elements.tabs.hidden,true);
+});
+
+test('switching workspace sections restores the same schedule view without another render',async()=>{
+ const data={...dashboard('schedule'),capabilities:{personalSchedule:true}};const f=browser(()=>response(data));f.authenticate();await f.settle();const view=f.elements.panel.children[0];
+ f.buttons[1].onclick();assert.equal(f.renders.length,2);f.buttons[0].onclick();assert.equal(f.renders.length,2);assert.equal(f.elements.panel.children[0],view);assert.equal(f.calls.length,1);
+ f.elements.refresh.onclick();await f.settle();assert.equal(f.calls.length,2);assert.equal(f.renders.length,3);
 });
