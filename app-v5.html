@@ -326,10 +326,10 @@ function defaultDeviceLabel(){return /iPhone|Android|Mobile/i.test(navigator.use
 function syncConfig(){
   try{
     const saved=JSON.parse(localStorage.getItem(SYNC_KEY))||{};
-    if(location.hostname.endsWith(".vercel.app"))return {url:"/api/sync",token:"server-managed",deviceLabel:saved.deviceLabel||defaultDeviceLabel(),serverManaged:true};
+    if(location.hostname.endsWith(".vercel.app")||location.hostname==="app.abovethemarkos.com")return {url:"/api/sync",token:"server-managed",deviceLabel:saved.deviceLabel||defaultDeviceLabel(),serverManaged:true};
     return saved
   }catch(e){
-    if(location.hostname.endsWith(".vercel.app"))return {url:"/api/sync",token:"server-managed",deviceLabel:defaultDeviceLabel(),serverManaged:true};
+    if(location.hostname.endsWith(".vercel.app")||location.hostname==="app.abovethemarkos.com")return {url:"/api/sync",token:"server-managed",deviceLabel:defaultDeviceLabel(),serverManaged:true};
     return {}
   }
 }
