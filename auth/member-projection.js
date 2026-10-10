@@ -2,6 +2,7 @@
 // membership and backend household checks. Never pass raw snapshots to clients.
 const object = value => value && typeof value === 'object' && !Array.isArray(value);
 const text = value => typeof value === 'string' ? value.slice(0, 500) : '';
+const calendarDate = value => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value+'T00:00:00Z')) && new Date(value+'T00:00:00Z').toISOString() === value+'T00:00:00.000Z';
 const amount = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
 
 export function projectMemberBudget(snapshot) {
@@ -31,10 +32,11 @@ export function projectMemberBudget(snapshot) {
 
 export function projectMemberMeals(meals, householdId) {
   if (!householdId || !object(meals) || meals.householdId !== householdId) return null;
-  const plan = meals.approved;
-  if (!object(plan) || !Array.isArray(plan.days) || plan.days.length > 7) return null;
-  return {...(Number.isSafeInteger(meals.version)&&meals.version>0?{version:meals.version}:{}),weekStart: text(plan.weekStart), days: plan.days.filter(object).map(day => ({date: text(day.date), meal: text(day.meal), prep: text(day.prep)})),
-    groceryList: Array.isArray(plan.groceryList) ? plan.groceryList.slice(0, 200).filter(object).map(item => ({item: text(item.item), qty: text(item.qty), done: item.done === true})) : []};
+  const project=plan=>!object(plan)||!Array.isArray(plan.days)||plan.days.length>7?null:{weekStart:text(plan.weekStart),days:plan.days.filter(object).map(day=>({date:text(day.date),meal:text(day.meal),prep:text(day.prep)})),groceryList:Array.isArray(plan.groceryList)?plan.groceryList.slice(0,200).filter(object).map(item=>({item:text(item.item),qty:text(item.qty),done:item.done===true})):[]};
+  const approved=project(meals.approved),candidate=project(meals.draft);
+  const draft=candidate&&candidate.days.length&&calendarDate(candidate.weekStart)&&(!approved?.weekStart||candidate.weekStart>approved.weekStart)?candidate:null;
+  if(!approved&&!draft)return null;
+  return {...(Number.isSafeInteger(meals.version)&&meals.version>0?{version:meals.version}:{}),...(approved||{weekStart:'',days:[],groceryList:[]}),...(draft?{draft}:{})};
 }
 
 export function projectMemberFamily(resources, householdId) {

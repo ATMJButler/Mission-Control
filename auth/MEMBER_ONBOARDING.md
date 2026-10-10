@@ -24,7 +24,7 @@ Member API calls verify origin, immutable Clerk identity, active unique director
 membership and permitted role. The private backend independently rechecks member
 and household authority. Personal schedules belong to their member and explicitly
 selected calendars. They never use the principal's legacy agenda snapshot.
-Shared Budget excludes balances/debt/transactions; Meals are approved shared data;
+Shared Budget excludes balances/debt/transactions; Meals include the approved week and populated upcoming shared draft;
 family resources require explicit household sharing. Sharing preferences do not
 publish events. Email suggestions need separate confirmation and sharing consent.
 
