@@ -17,9 +17,9 @@ try {
     try{return await r.json();}catch{throw new Error('Browser credential response unreadable.');}
   };
   phase='synthetic user lookup';
-  const users=await clerk('/users?'+new URLSearchParams({'email_address[]':testEmail}));
+  const users=await clerk('/users?'+new URLSearchParams({email_address:testEmail}));
   phase='synthetic user marker verification';
-  if(!Array.isArray(users)||users.length!==1||users[0].private_metadata?.purpose!=='Mission Control isolated staging automation')throw new Error('Marked synthetic Clerk user required.');
+  if(!Array.isArray(users)||users.length!==1||!users[0].email_addresses?.some(address=>address.email_address===testEmail)||users[0].private_metadata?.purpose!=='Mission Control isolated staging automation')throw new Error('Marked synthetic Clerk user required.');
   phase='short-lived ticket creation';
   const ticket=await clerk('/sign_in_tokens',{user_id:users[0].id,expires_in_seconds:60});
   if(typeof ticket.token!=='string')throw new Error('Short-lived sign-in ticket missing.');

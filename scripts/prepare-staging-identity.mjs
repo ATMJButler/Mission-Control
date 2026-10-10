@@ -31,7 +31,7 @@ export async function prepareStagingIdentity({googleToken,secretKey,publishableK
   const prior=beforeUsers.slice(1).filter(row=>row[0]===testUserId);
   const priorMember=beforeMembers.slice(1).filter(row=>row[0]===membershipId||row[2]===testUserId);
   if(prior.length>1||priorMember.length>1)throw new Error('Automation directory binding ambiguous.');
-  const found=await call('https://api.clerk.com/v1/users?'+new URLSearchParams({'email_address[]':testEmail}));
+  const found=await call('https://api.clerk.com/v1/users?'+new URLSearchParams({email_address:testEmail}));
   if(!Array.isArray(found)||found.length>1)throw new Error('Automation Clerk identity ambiguous.');
   if((clerk.userCount!==found.length)||(!found.length&&(prior.length||priorMember.length)))throw new Error('Unexpected existing account or directory binding.');
   let user=found[0];

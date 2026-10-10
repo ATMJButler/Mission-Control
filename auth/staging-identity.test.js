@@ -13,7 +13,12 @@ function fixture({version=13,unrelatedAccount=false,ambiguous=false,loseBatchRes
   calls.push({url,method:options.method});let result;const path=decodeURIComponent(url);
   if(path.includes('/jwks')||path.includes('/.well-known/'))result={keys:[{kid:'a',kty:'RSA',n:'public',e:'AQAB'}]};
   else if(path.includes('/users/count'))result={total_count:account||unrelatedAccount?1:0};
-  else if(path.includes('/users?'))result=account?[account]:[];
+  else if(path.includes('/users?')){
+   const query=new URL(url).searchParams;
+   assert.equal(query.get('email_address'),testEmail);
+   assert.equal(query.has('email_address[]'),false);
+   result=account?[account]:[];
+  }
   else if(path==='https://api.clerk.com/v1/users'&&options.method==='POST'){
    const body=JSON.parse(options.body);assert.deepEqual(body.email_address,[testEmail]);account={id:'user_synthetic',private_metadata:body.private_metadata};result=account;
   }else if(path.includes('/values:batchUpdate')){
