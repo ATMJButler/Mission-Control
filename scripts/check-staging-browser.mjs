@@ -7,6 +7,7 @@ let browser,phase='Clerk preflight';
 try {
   const secretKey=process.env.STAGING_CLERK_SECRET_KEY,publishableKey=process.env.STAGING_CLERK_PUBLISHABLE_KEY;
   const verified=await checkStagingClerk({secretKey,publishableKey});
+  phase='staging user-count safety check';
   // Staging now retains the owner alongside the uniquely marked synthetic user.
   // Never delete the owner to restore the original single-user fixture assumption.
   if(verified.userCount<1||verified.userCount>2)throw new Error('Expected bounded staging Clerk fixture.');
@@ -15,7 +16,9 @@ try {
     if(!r.ok)throw new Error(`Browser credential preparation failed (HTTP ${r.status}); contents omitted.`);
     try{return await r.json();}catch{throw new Error('Browser credential response unreadable.');}
   };
+  phase='synthetic user lookup';
   const users=await clerk('/users?'+new URLSearchParams({'email_address[]':testEmail}));
+  phase='synthetic user marker verification';
   if(!Array.isArray(users)||users.length!==1||users[0].private_metadata?.purpose!=='Mission Control isolated staging automation')throw new Error('Marked synthetic Clerk user required.');
   phase='short-lived ticket creation';
   const ticket=await clerk('/sign_in_tokens',{user_id:users[0].id,expires_in_seconds:60});
