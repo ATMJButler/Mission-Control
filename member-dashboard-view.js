@@ -1,5 +1,5 @@
 // Only render the projected member contract. Text never becomes HTML markup.
-export function renderMemberDashboard(root,dashboard,tab){
+export function renderMemberDashboard(root,dashboard,tab,{mealPlan='approved',selectMealPlan}={}){
   root.replaceChildren();const doc=root.ownerDocument;
   const node=(parent,tag,text,cls)=>{const item=doc.createElement(tag);item.textContent=text;if(cls)item.className=cls;parent.append(item);return item;};
   const card=title=>{const section=doc.createElement('article');section.className='card';root.append(section);node(section,'h3',title);return section;};
@@ -15,10 +15,13 @@ export function renderMemberDashboard(root,dashboard,tab){
     if(dashboard.budget.spent===null)node(section,'p','Some spending totals are not verified yet. They are shown as unavailable.','muted');return;
   }
   if(tab==='meals'){
-    const section=card('Approved meal plan');if(!dashboard.meals){missing(section,'meals');return;}
-    if(dashboard.meals.weekStart)node(section,'p',`Week starting ${dashboard.meals.weekStart}`);
-    const list=node(section,'ul','','list');for(const day of dashboard.meals.days){const row=node(list,'li','');node(row,'strong',`${day.date} · ${day.meal}`);if(day.prep)node(row,'p',day.prep);}
-    const groceries=card('Shared grocery list');node(groceries,'p',dashboard.capabilities?.mealsEdit?'Shared approved list. Use Edit grocery list to change it.':'Read-only view of the approved list.','muted');const items=node(groceries,'ul','','list');for(const item of dashboard.meals.groceryList)node(items,'li',`${item.done?'✓ ':''}${item.item}${item.qty?' · '+item.qty:''}`);if(!dashboard.meals.groceryList.length)node(groceries,'p','No groceries on this approved plan.');return;
+    const meals=mealPlan==='draft'?dashboard.meals?.draft:dashboard.meals;
+    if(dashboard.meals?.draft){const choices=node(root,'nav','','meal-weeks');choices.setAttribute('aria-label','Meal week');for(const [value,label]of [['approved','Approved week'],['draft','Next week draft']]){const button=node(choices,'button',label);button.type='button';button.setAttribute('aria-pressed',String(value===mealPlan));button.onclick=()=>selectMealPlan?.(value);}}
+    const section=card(mealPlan==='draft'?'Next week draft':'Approved meal plan');if(!meals){missing(section,'meals');return;}
+    if(mealPlan==='draft')node(section,'p','Shared planning draft. Changes do not approve the week or change the approved grocery list.','muted');
+    if(meals.weekStart)node(section,'p',`Week starting ${meals.weekStart}`);
+    const list=node(section,'ul','','list');for(const day of meals.days){const row=node(list,'li','');node(row,'strong',`${day.date} · ${day.meal}`);if(day.prep)node(row,'p',day.prep);}
+    const groceries=card('Shared grocery list');node(groceries,'p',dashboard.capabilities?.mealsEdit?'Shared list for this week. Use Edit grocery list to change it.':'Read-only view of this week’s list.','muted');const items=node(groceries,'ul','','list');for(const item of meals.groceryList)node(items,'li',`${item.done?'✓ ':''}${item.item}${item.qty?' · '+item.qty:''}`);if(!meals.groceryList.length)node(groceries,'p','No groceries on this plan.');return;
   }
   const section=card('Shared family items');if(dashboard.sections.family!=='available'){missing(section,'family');}else if(!dashboard.family.length)node(section,'p','No active family items have been explicitly shared yet.','muted');else{const list=node(section,'ul','','list');for(const item of dashboard.family)node(list,'li',item.name);}
   const calendar=card('Family Calendar');node(calendar,'p','Shared calendar connections are not activated yet. Private calendars are not included automatically.','muted');

@@ -92,3 +92,21 @@ acceptance, reviewed runtime results, and an explicit member-gate policy decisio
 Calendar/email OAuth and personal scheduling remain separate unfinished work.
 Project-v1 webpage writes remain disconnected. Preserve legacy Projects and
 John's current Meals throughout. No unattended configuration or data cleanup.
+
+## Upcoming shared draft editing
+
+The member Meals view defaults to a populated upcoming draft when one exists,
+with an Approved week / Next week draft selector. The same edit gate covers
+`edit_draft_meals` and `edit_draft_groceries`. These operations edit only an
+existing draft with a valid week later than the approved week. They cannot create
+or approve a plan. Projection exposes meal, prep and grocery fields only.
+
+Both weeks use the same record version and lock, including principal saves.
+Draft edits preserve the approved plan, draft settings, history and rules.
+Switching weeks prompts before discarding an editor; a changed shared week
+cannot be reconciled into an editor for the old week.
+
+This addition requires updated web code and an updated Apps Script web app
+version. Version 87 does not expose or accept member draft edits. Before backend
+promotion, the new browser continues displaying the approved week. Automated
+coverage is separate from staged and production acceptance of this addition.

@@ -16,7 +16,7 @@ test('ambiguous and invalid budget rows fail closed', () => {
   for(const categories of [[{name:'Food',planned:'500'}],[{name:'Food',planned:-1}],[{name:'Food',planned:1},{name:'Food',planned:2}],[null]]) assert.equal(projectMemberBudget({budget:{categories}}),null);
   assert.equal(projectMemberBudget({budget:{categories:[{name:'Food',planned:1}]},budgetReconciliation:{categories:[{name:'Food',spent:1},{name:'Food',spent:2}]}}),null);
 });
-test('meals require exact household and expose approved shared plan only', () => {
+test('meals require exact household and strip private plan metadata', () => {
   const meals={householdId:'home',draft:{private:'PRIVATE'},mealHistory:['PRIVATE'],approved:{weekStart:'2026-10-05',days:[{date:'2026-10-05',meal:'Soup',prep:'Heat',calendarConstraint:{private:'PRIVATE'}}],groceryList:[{item:'Bread',qty:'1',done:false,sourceMeal:'PRIVATE'}]}};
   assert.equal(projectMemberMeals(meals,'other'),null);
   assert.deepEqual(projectMemberMeals(meals,'home'),{weekStart:'2026-10-05',days:[{date:'2026-10-05',meal:'Soup',prep:'Heat'}],groceryList:[{item:'Bread',qty:'1',done:false}]});
@@ -27,3 +27,5 @@ test('family sharing is explicit, household scoped and excludes private or inact
   assert.deepEqual(projectMemberFamily(rows,'home'),[{id:'shared',name:'Family dinner',lifecycle:'active'}]);
   assert.deepEqual(projectMemberFamily([...rows,{...rows[0],scope:'private:john'}],'home'),[]);
 });
+
+test('upcoming draft projects only shared planning fields and requires a later valid week',()=>{const approved={weekStart:'2026-10-05',days:[],groceryList:[]};const draft={weekStart:'2026-10-12',days:[{date:'2026-10-12',meal:'Pasta',prep:'Boil',recipe:{secret:true}}],groceryList:[],settings:{secret:true}};const raw={householdId:'home',version:7,approved,draft};assert.deepEqual(projectMemberMeals(raw,'home').draft,{weekStart:'2026-10-12',days:[{date:'2026-10-12',meal:'Pasta',prep:'Boil'}],groceryList:[]});for(const weekStart of ['2026-10-05','2026-02-30','2026-99-12'])assert.equal(projectMemberMeals({...raw,draft:{...draft,weekStart}},'home').draft,undefined);});
