@@ -21,8 +21,10 @@ async function bootMissionControlAuth(){
     await loadScript("https://"+clerkDomain+"/npm/@clerk/ui@1/dist/ui.browser.js");
     await loadScript("https://"+clerkDomain+"/npm/@clerk/clerk-js@6/dist/clerk.browser.js",{"data-clerk-publishable-key":cfg.publishableKey});
     await window.Clerk.load({ui:{ClerkUI:window.__internal_ClerkUICtor}});
+    let signInMounted=false;
     const render=()=>{
       if(window.Clerk.isSignedIn){
+        if(signInMounted){window.Clerk.unmountSignIn(mount);signInMounted=false;}
         mount.innerHTML="";
         state.textContent="Identity verified.";
         const gate=document.getElementById("mcAuthGate");if(gate)gate.style.display="none";window.dispatchEvent(new CustomEvent("mc-authenticated"));
@@ -33,8 +35,10 @@ async function bootMissionControlAuth(){
       const core=document.getElementById("core");if(core)core.src="about:blank";
       window.dispatchEvent(new CustomEvent("mc-signed-out"));
       const signOut=document.getElementById("mcSignOut");if(signOut)signOut.remove();
-      mount.innerHTML="";
-      window.Clerk.mountSignIn(mount,{});
+      if(!signInMounted){
+        window.Clerk.mountSignIn(mount,{});
+        signInMounted=true;
+      }
       state.textContent="Authentication is required.";
     };
     render();window.Clerk.addListener(render);
