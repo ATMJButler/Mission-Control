@@ -38,3 +38,15 @@ test('Clerk updates preserve the verification form until sign-in completes',asyn
  clerk.isSignedIn=true;listener();assert.equal(unmounts,1);assert.equal(mount.innerHTML,'');
  clerk.isSignedIn=false;listener();assert.equal(mounts,2);
 });
+test('custom app domain uses protected sync in fresh and malformed browser storage',()=>{
+ const source=read('app-v5.html');const fn=source.slice(source.indexOf('function syncConfig(){'),source.indexOf('function sourceLabel(){'));
+ for(const hostname of ['app.abovethemarkos.com','mission-control-lime-tau.vercel.app']){
+  for(const saved of [null,'{broken',JSON.stringify({url:'https://old.invalid',token:'obsolete',deviceLabel:'Phone'})]){
+   const ctx=vm.createContext({location:{hostname},localStorage:{getItem:()=>saved},SYNC_KEY:'sync',defaultDeviceLabel:()=> 'Desktop'});
+   const cfg=vm.runInContext(fn+';syncConfig()',ctx);
+   assert.equal(cfg.url,'/api/sync');assert.equal(cfg.token,'server-managed');assert.equal(cfg.serverManaged,true);
+  }
+ }
+ const ctx=vm.createContext({location:{hostname:'localhost'},localStorage:{getItem:()=>JSON.stringify({url:'http://local.invalid',token:'local'})},SYNC_KEY:'sync',defaultDeviceLabel:()=> 'Desktop'});
+ assert.equal(vm.runInContext(fn+';syncConfig()',ctx).url,'http://local.invalid');
+});
