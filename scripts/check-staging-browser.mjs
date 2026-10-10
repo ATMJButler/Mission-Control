@@ -7,7 +7,9 @@ let browser,phase='Clerk preflight';
 try {
   const secretKey=process.env.STAGING_CLERK_SECRET_KEY,publishableKey=process.env.STAGING_CLERK_PUBLISHABLE_KEY;
   const verified=await checkStagingClerk({secretKey,publishableKey});
-  if(verified.userCount!==1)throw new Error('Isolated single-user Clerk fixture required.');
+  // Staging now retains the owner alongside the uniquely marked synthetic user.
+  // Never delete the owner to restore the original single-user fixture assumption.
+  if(verified.userCount<1||verified.userCount>2)throw new Error('Expected bounded staging Clerk fixture.');
   const clerk=async(path,body)=>{
     const r=await fetch('https://api.clerk.com/v1'+path,{method:body?'POST':'GET',headers:{Authorization:`Bearer ${secretKey}`,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(20000)});
     if(!r.ok)throw new Error(`Browser credential preparation failed (HTTP ${r.status}); contents omitted.`);
