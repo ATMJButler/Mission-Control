@@ -28,6 +28,15 @@ try {
   browser=await chromium.launch({headless:true});
   const context=await browser.newContext();
   const page=await context.newPage();
+  // Log only bounded routing metadata, never identities, cookies or payloads.
+  const workspaceCodes=new Set(['UNAUTHENTICATED','USER_NOT_PROVISIONED','IDENTITY_BINDING_NOT_UNIQUE','HOUSEHOLD_INACTIVE_OR_MISSING','MEMBERSHIP_INACTIVE_OR_MISSING','MEMBERSHIP_NOT_UNIQUE','ORIGIN_FORBIDDEN','CROSS_SITE_FORBIDDEN','WORKSPACE_FORBIDDEN','WORKSPACE_UNAVAILABLE']);
+  page.on('response',async response=>{
+    if(response.url()!==origin+'/api/v1/workspace')return;
+    try{
+      const body=await response.json(),workspace=body.workspace;
+      console.log(JSON.stringify({checkpoint:'workspace-routing-response',status:response.status(),ok:body.ok===true,code:workspaceCodes.has(body.code)?body.code:null,role:['principal','secondary','extended'].includes(workspace?.role)?workspace.role:null,principalWorkspace:workspace?.principalWorkspace===true,memberDashboardReady:workspace?.memberDashboardReady===true,memberSetupReady:workspace?.memberSetupReady===true}));
+    }catch{console.log(JSON.stringify({checkpoint:'workspace-routing-response',status:response.status(),unreadable:true}));}
+  });
   phase='staging page and Clerk loading';
   await page.goto(origin,{waitUntil:'domcontentloaded'});
   await page.waitForFunction(()=>window.Clerk?.loaded===true,{},{timeout:45000});
