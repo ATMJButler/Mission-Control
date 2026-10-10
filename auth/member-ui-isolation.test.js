@@ -27,3 +27,14 @@ test('embedded signout belongs to the existing shell; standalone and unrelated f
  ctx.window.frameElement={id:'core'};ctx.window.parent={document:{getElementById:()=>null}};assert.equal(check(),false);
  ctx.window.parent={get document(){throw Error('Cross origin');}};assert.equal(check(),false);
 });
+test('Clerk updates preserve the verification form until sign-in completes',async()=>{
+ let listener,mounts=0,unmounts=0;
+ const mount={innerHTML:''},state={},gate={style:{}},button={remove(){}};
+ const elements={mcClerkMount:mount,mcAuthState:state,mcAuthGate:gate,mcSignOut:button};
+ const clerk={isSignedIn:false,load:async()=>{},mountSignIn(){mounts++;mount.innerHTML='email-code-entry';},unmountSignIn(){unmounts++;},addListener(fn){listener=fn;}};
+ const ctx=vm.createContext({window:{Clerk:clerk,addEventListener(){},dispatchEvent(){}},document:{getElementById:id=>elements[id]||null,createElement:()=>({setAttribute(){}}),head:{appendChild:s=>s.onload()}},fetch:async()=>({json:async()=>({ok:true,publishableKey:'pk_test_domain'})}),atob:()=> 'auth.example$',CustomEvent:class{},console});
+ vm.runInContext(read('auth-ui.js'),ctx);await vm.runInContext('bootMissionControlAuth()',ctx);
+ listener();listener();assert.equal(mounts,1);assert.equal(mount.innerHTML,'email-code-entry');
+ clerk.isSignedIn=true;listener();assert.equal(unmounts,1);assert.equal(mount.innerHTML,'');
+ clerk.isSignedIn=false;listener();assert.equal(mounts,2);
+});
