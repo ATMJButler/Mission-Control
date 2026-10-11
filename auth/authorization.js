@@ -19,9 +19,9 @@ const POLICIES = Object.freeze({
     soft_delete_project: ["principal"]
   }),
   meals: Object.freeze({
-    read: ["principal","secondary","extended"],
-    save_draft: ["principal","secondary"],
-    approve: ["principal","secondary"]
+    read: ["principal"],
+    save_draft: ["principal"],
+    approve: ["principal"]
   }),
   identity: Object.freeze({
     read_self: ["principal","secondary","extended"],

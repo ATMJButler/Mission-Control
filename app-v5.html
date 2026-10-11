@@ -640,7 +640,7 @@ function saveMealRecipe(){const i=Number(mealRecipeIndex.value),x=state.meals.da
 function addRecipeIngredientsToGrocery(){const i=Number(mealRecipeIndex.value),x=state.meals.days[i];if(!x)return;const ingredients=mealRecipeIngredients.value.split("\n").map(v=>v.trim()).filter(Boolean),existing=new Set(state.meals.groceryList.map(g=>String(g.item||"").toLowerCase()));let added=0;ingredients.forEach(item=>{if(!existing.has(item.toLowerCase())){state.meals.groceryList.push({item,qty:"",done:false,sourceMeal:x.meal||"",addedAt:new Date().toISOString()});existing.add(item.toLowerCase());added++}});saveMeals(false);renderMeals();toast(added+" ingredient"+(added===1?"":"s")+" added to grocery list")}
 async function loadMeals(){
   if(state.mealsNeedsReview){const review=document.getElementById("mealReviewBtn"),status=document.getElementById("mealSaveStatus");if(review)review.hidden=false;if(status)status.textContent="Your local draft is kept. Review latest shared Meals before saving.";return false}
-  try{const r=await fetch("/api/meals?t="+Date.now(),{cache:"no-store"});const x=await r.json();if(x&&x.ok&&x.meals){if(state.mealsNeedsReview)return false;mealsDurable=x.meals;state.meals=JSON.parse(JSON.stringify(x.meals.draft||x.meals.approved||x.meals));delete state.meals._durable;localStorage.setItem(storageKey()||LEGACY_KEY,JSON.stringify(state));renderMeals();return true}}catch(e){}return false
+  try{const r=await fetch("/api/meals?t="+Date.now(),{cache:"no-store"});const x=await r.json();if(x&&x.ok&&x.meals===null){if(state.mealsNeedsReview)return false;mealsDurable={version:0};return true}if(x&&x.ok&&x.meals){if(state.mealsNeedsReview)return false;mealsDurable=x.meals;state.meals=JSON.parse(JSON.stringify(x.meals.draft||x.meals.approved||x.meals));delete state.meals._durable;localStorage.setItem(storageKey()||LEGACY_KEY,JSON.stringify(state));renderMeals();return true}}catch(e){}return false
 }
 function durableMealsPayload(){
   ensureMealWeek();const existing=mealsDurable?JSON.parse(JSON.stringify(mealsDurable)):{};const clean=JSON.parse(JSON.stringify(state.meals,(k,v)=>k==="_durable"?undefined:v));const draft={weekStart:clean.weekStart||"",days:clean.days||[],groceryList:clean.groceryList||[],inventory:clean.inventory||[],settings:clean.settings||{},updatedAt:new Date().toISOString()};
@@ -706,6 +706,7 @@ function mealSaveErrorMessage(error,action="save"){
   return (action==="approval"?"Week was not approved — ":"Not saved to shared Meals — ")+message;
 }
 async function postMealMutation(body){
+  if(!Number.isSafeInteger(body.expectedVersion)||body.expectedVersion<0)throw new Error("INVALID: Refresh shared Meals before saving; a verified version is required.");
   let response,result;
   try{response=await fetch("/api/meals",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});result=await response.json()}
   catch(e){throw new Error("UNKNOWN: The shared Meals response could not be read; check shared Meals before retry.")}

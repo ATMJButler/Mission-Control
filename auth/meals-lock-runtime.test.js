@@ -96,13 +96,14 @@ test("lock timeout does not write or release a lock that was never acquired", ()
   assert.deepEqual(h.rows("Meals", true), before); assert.deepEqual(h.events.map(e => e.type), ["wait"]); assertLock(h);
 });
 
-test("existing unversioned compatibility calls are also locked", () => {
-  const h = fixture(); assert.equal(h.post(request({expectedVersion: undefined})).ok, true);
-  assert.equal(meals(h).version, 8); assertLock(h);
-});
 
-test("empty Meals initialization preserves the existing first-version convention under lock", () => {
-  const h = fixture(); h.sheet("Meals", [h.rows("Meals")[0]]);
-  const result = h.post(request({expectedVersion: undefined}));
-  assert.equal(result.ok, true); assert.equal(result.meals.version, 2); assert.equal(meals(h).version, 2); assertLock(h);
+test("legacy backend rejects missing and malformed versions without changing Meals",()=>{
+ for(const operation of ['save_draft','approve','update_shared'])for(const expectedVersion of [undefined,null,'7','',false,-1,1.5,Number.MAX_SAFE_INTEGER+1]){const h=fixture(),before=h.rows('Meals',true);const result=h.post(request({operation,expectedVersion}));assert.equal(result.ok,false);assert.match(result.error,/^INVALID:/);assert.deepEqual(h.rows('Meals',true),before);assert.equal(h.events.filter(e=>e.type==='write').length,0);assertLock(h);}
 });
+test("new Meals initialization requires an explicit zero version",()=>{
+ const h=fixture();h.sheet('Meals',[h.rows('Meals')[0]]);
+ assert.equal(h.post(request({expectedVersion:undefined})).ok,false);
+ assert.match(h.post(request({expectedVersion:7})).error,/^CONFLICT:/);
+ const result=h.post(request({expectedVersion:0}));assert.equal(result.ok,true);assert.equal(result.meals.version,1);assert.equal(meals(h).version,1);assertLock(h);
+});
+test("queued Dot Meals operations cannot omit the expected version",()=>{const h=fixture();queue(h);const rows=h.rows('Agent Operations');rows[1][5]='';h.sheet('Agent Operations',rows);const before=h.rows('Meals',true);h.call('processAgentOperations');assert.equal(h.rows('Agent Operations',true)[1][7],'INVALID');assert.deepEqual(h.rows('Meals',true),before);assertLock(h);});

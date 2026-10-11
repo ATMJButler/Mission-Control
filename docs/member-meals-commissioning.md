@@ -110,3 +110,26 @@ This addition requires updated web code and an updated Apps Script web app
 version. Version 87 does not expose or accept member draft edits. Before backend
 promotion, the new browser continues displaying the approved week. Automated
 coverage is separate from staged and production acceptance of this addition.
+
+## Legacy Meals boundary hardening
+
+The full-record `/api/meals` read/save/approval route is principal-only. Secondary
+members edit approved or upcoming meal/grocery fields through the scoped member
+API, with the existing member gates and household checks. Extended members do
+not receive a full Meals record through the legacy route. Approval remains a
+principal operation.
+
+Legacy HTTP and Apps Script writes require a numeric safe-integer
+`expectedVersion`. Existing records must match their loaded version under the
+shared lock. Explicit zero can initialize a missing record, producing version
+one; it conflicts once a record exists. The browser uses zero only after a
+successful read confirms an absent record. Missing or malformed versions are
+rejected without a Meals write, including queued Dot draft operations. Existing
+unversioned callers must supply a verified version rather than retry blindly.
+
+This change requires web deployment and promotion of its new immutable Apps
+Script version on the existing deployment. Version 88 is the rollback backend.
+The source push also updates Head used by the time-based agent trigger: valid
+versioned queue writes continue, while blank/string version fields are rejected
+as INVALID. Tests cover both writer orders and queued rejection; live trigger
+health and post-release acceptance remain separate checks.
