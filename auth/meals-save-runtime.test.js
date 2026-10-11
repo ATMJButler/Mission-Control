@@ -146,3 +146,10 @@ test("uncertain approval reports an unconfirmed outcome even when readback shows
   assert.match(flow.messages.at(-1), /Check shared Meals before trying again/);
   assert.equal(flow.browserRequests.length, 2); assert.equal(flow.upstreamRequests.length, 2);
 });
+
+test('legacy API rejects missing or malformed versions before contacting the backend',async t=>{
+ const flow=setup(t),before=flow.backend.rows('Meals');for(const operation of ['save_draft','approve'])for(const expectedVersion of [undefined,null,'7',false,-1,1.5,Number.MAX_SAFE_INTEGER+1]){const response=await flow.post({operation,expectedVersion,meals:{draft:{days:[]}}});assert.equal(response.status,400);assert.equal((await response.json()).code,'MEALS_VERSION_REQUIRED');}assert.equal(flow.upstreamRequests.length,0);assert.deepEqual(flow.backend.rows('Meals'),before);
+});
+test('principal browser cannot save without a loaded version',async t=>{const flow=setup(t);flow.browser.mealsDurable=null;assert.equal(await flow.browser.saveMeals(),false);assert.equal(flow.browserRequests.length,0);assert.equal(flow.upstreamRequests.length,0);assert.match(flow.status.textContent,/verified version is required/);});
+
+test('confirmed empty Meals creates version one and a stale zero cannot overwrite it',async t=>{const flow=setup(t);flow.backend.sheet('Meals',[flow.backend.rows('Meals')[0]]);flow.browser.mealsDurable={version:0};assert.equal(await flow.browser.saveMeals(),true);assert.equal(flow.browser.mealsDurable.version,1);const before=flow.backend.rows('Meals',true);const response=await flow.post({operation:'save_draft',expectedVersion:0,meals:{draft:{days:[]}}});assert.match((await response.json()).error,/^CONFLICT:/);assert.deepEqual(flow.backend.rows('Meals',true),before);});

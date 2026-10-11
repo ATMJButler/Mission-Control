@@ -128,3 +128,9 @@ test('expired workspace session offers fresh sign-in rather than repeating rejec
  f.authenticate();await f.settle();assert.equal(f.elements.mcWorkspaceRetry.textContent,'Sign in again');
  const requests=f.calls.length;f.elements.mcWorkspaceRetry.click();await f.settle();assert.equal(recoveries,1);assert.equal(f.calls.length,requests);assert.equal(f.elements.core.src,'about:blank');
 });
+
+test('legacy Meals reads and writes are principal-only; members retain scoped edit permission',async t=>{
+ for(const role of ['secondary','extended']){const f=route(t,'../api/meals.js',{role});for(const method of ['GET','POST'])for(const operation of ['save_draft','approve']){const response=await f.request(method,{operation,expectedVersion:7,meals:{draft:{days:[]}}});assert.equal(response.status,403);assert.equal(f.calls.length,0);}}
+ const principal=route(t,'../api/meals.js');assert.equal((await principal.request('GET')).status,200);
+ const ctx={user:{userId:'u1',status:'active'},household:{householdId:'h1',status:'active'},membership:{userId:'u1',householdId:'h1',role:'secondary',status:'active'}};assert.equal(authorize({...ctx,resource:'member_meals',operation:'edit'}).ok,true);
+});

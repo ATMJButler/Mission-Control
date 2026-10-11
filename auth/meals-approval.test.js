@@ -3,7 +3,7 @@ const principal={user:{userId:"u1",status:"active"},household:{householdId:"h1",
 const secondary={...principal,membership:{...principal.membership,role:"secondary"}};
 for(const ctx of [principal,secondary]){
   const r=authorize({...ctx,resource:"meals",operation:"approve"});
-  if(!r.ok)throw new Error("approve should be allowed for "+ctx.membership.role);
+  if(r.ok!==(ctx.membership.role==="principal"))throw new Error("approve permission incorrect for "+ctx.membership.role);
 }
 const legacy=authorize({...principal,resource:"meals",operation:"approve_week"});
 if(legacy.ok)throw new Error("legacy approve_week alias should not be authorized");
