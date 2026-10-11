@@ -1,5 +1,5 @@
 // Only render the projected member contract. Text never becomes HTML markup.
-export function renderMemberDashboard(root,dashboard,tab,{mealPlan='approved',selectMealPlan}={}){
+export function renderMemberDashboard(root,dashboard,tab,{mealPlan='approved',selectMealPlan,mealActions}={}){
   root.replaceChildren();const doc=root.ownerDocument;
   const node=(parent,tag,text,cls)=>{const item=doc.createElement(tag);item.textContent=text;if(cls)item.className=cls;parent.append(item);return item;};
   const card=title=>{const section=doc.createElement('article');section.className='card';root.append(section);node(section,'h3',title);return section;};
@@ -17,6 +17,7 @@ export function renderMemberDashboard(root,dashboard,tab,{mealPlan='approved',se
   if(tab==='meals'){
     const meals=mealPlan==='draft'?dashboard.meals?.draft:dashboard.meals;
     if(dashboard.meals?.draft){const choices=node(root,'nav','','meal-weeks');choices.setAttribute('aria-label','Meal week');for(const [value,label]of [['approved','Approved week'],['draft','Next week draft']]){const button=node(choices,'button',label);button.type='button';button.setAttribute('aria-pressed',String(value===mealPlan));button.onclick=()=>selectMealPlan?.(value);}}
+    if(mealActions){const controls=node(root,'nav','','meal-actions');controls.setAttribute('aria-label','Edit selected meal week');mealActions(controls);}
     const section=card(mealPlan==='draft'?'Next week draft':'Approved meal plan');if(!meals){missing(section,'meals');return;}
     if(mealPlan==='draft')node(section,'p','Shared planning draft. Changes do not approve the week or change the approved grocery list.','muted');
     if(meals.weekStart)node(section,'p',`Week starting ${meals.weekStart}`);
