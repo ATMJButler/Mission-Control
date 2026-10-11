@@ -133,3 +133,11 @@ The source push also updates Head used by the time-based agent trigger: valid
 versioned queue writes continue, while blank/string version fields are rejected
 as INVALID. Tests cover both writer orders and queued rejection; live trigger
 health and post-release acceptance remain separate checks.
+
+### Recurring snacks and staples
+
+Weekly plans optionally include `snacksList`, separate from meal `groceryList`, with projected `{item, qty, done}` rows. Old plans without this field display an empty section. Principal Save Draft and Approve Week preserve this list. Members use `edit_snacks` / `edit_draft_snacks`; the same role gates, lock, expected-version conflict checks, and readback/review rules apply. Each operation changes only the selected plan's snacks, preserving meals, groceries, other weeks, and private metadata.
+
+Plan Next Week copies snacks from the most recent approved/draft plan containing a list (including an intentionally empty list). Names and quantities carry forward, and bought checkmarks reset when the week changes. Regenerating the same week retains its checkmarks. Existing future drafts are not silently changed when editing an older approved week.
+
+Release requires website deployment plus promotion of the newly created Apps Script version on the existing web-app deployment. Before promotion, new member snack writes will be rejected by the old backend; no existing data needs a migration. Verify one snack save/readback from each role after promotion, then a future-week carry-forward in isolated data. Automated contract tests do not substitute for live deployment verification.

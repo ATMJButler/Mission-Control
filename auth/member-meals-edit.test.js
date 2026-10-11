@@ -31,3 +31,18 @@ test('upcoming edits cannot create a draft or target the approved week; both wee
  const h=upcomingHarness();assert.equal(h.post(body({operation:'edit_draft_groceries'})).ok,true);assert.equal(h.post(body()).error,'MEMBER_MEALS_CONFLICT');
 });
 test('shared draft read exposes planning fields without private metadata',()=>{const h=upcomingHarness(),value=h.call('memberMealsRead_','home').value;assert.equal(value.draft.weekStart,'2026-10-12');assert.equal(value.draft.days[0].meal,'Pasta');assert.equal(value.draft.settings,undefined);assert.equal(value.draft.days[0].recipe,undefined);assert.equal(value.approved.weekStart,'2026-10-05');});
+
+test('snacks edits are scoped to the selected plan and share grocery conflict protection',()=>{
+ for(const [operation,h] of [['edit_snacks',harness()],['edit_draft_snacks',upcomingHarness()]]){
+  const before=JSON.parse(h.rows('Meals')[3][6]),target=operation.startsWith('edit_draft')?'draft':'approved';
+  assert.equal(validateMemberMealEdit(operation,groceries),true);
+  assert.equal(h.post(body({operation})).newVersion,8);
+  const after=JSON.parse(h.rows('Meals')[3][6]);assert.deepEqual(after[target].snacksList,groceries);assert.deepEqual(after[target].groceryList,before[target].groceryList);assert.deepEqual(after[target].days,before[target].days);assert.deepEqual(after.rules,before.rules);assert.deepEqual(after.mealHistory,before.mealHistory);
+  assert.equal(h.post(body({operation})).error,'MEMBER_MEALS_CONFLICT');
+  const projection=h.call('memberMealsRead_','home').value;assert.deepEqual(JSON.parse(JSON.stringify(projection[target].snacksList)),groceries);
+ }
+});
+test('snack edits reject revoked roles and invalid private fields before writing',()=>{
+ const h=harness(),rows=h.rows('Household Memberships');rows[1][3]='extended';h.sheet('Household Memberships',rows);assert.equal(h.post(body({operation:'edit_snacks'})).ok,false);assert.equal(JSON.parse(h.rows('Meals')[3][6]).version,7);
+ assert.equal(validateMemberMealEdit('edit_snacks',[{...groceries[0],private:'no'}]),false);
+});

@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import fs from 'node:fs';
 import {validateMemberMealEdit} from './member-meals-edit.js';
-function browser(transport,target='approved'){
+function browser(transport,target='approved',action=1){
  class Element{constructor(){this.children=[];this.value='';this.checked=false;this.disabled=false;this.hidden=false;this.textContent='';}append(...nodes){this.children.push(...nodes);}replaceChildren(){this.children=[];}focus(){}querySelector(selector){const name=selector.match(/name=(\w+)/)[1];return this.find(name);}find(name){if(this.name===name)return this;for(const child of this.children){const found=child.find?.(name);if(found)return found;}return null;}}
  const ids=['mealEditor','mealEditRows','mealEditShared','mealEditMessage','mealEditTitle','mealEditReviewLabel','mealEditReviewed','mealEditAdd','mealEditSave','mealEditCancel'];const elements=Object.fromEntries(ids.map(id=>[id,new Element()]));const calls=[],messages=[];let refreshes=0;
  const ctx=vm.createContext({document:{getElementById:id=>elements[id],createElement:()=>new Element()},window:{confirm:()=>true},validateMemberMealEdit,structuredClone,AbortSignal,fetch:async(_url,options)=>{const body=JSON.parse(options.body);calls.push(body);return transport(body);}});
  vm.runInContext(fs.readFileSync(new URL('../member-meals-editor.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,'').replace('export function createMemberMealsEditor','globalThis.createMemberMealsEditor = function createMemberMealsEditor'),ctx);
- const editor=ctx.createMemberMealsEditor({refresh:async()=>{refreshes++;},status:message=>messages.push(message)}),root=new Element();const meals={version:7,days:[{date:'2026-10-05',meal:'Soup',prep:''}],groceryList:[{item:'Bread',qty:'1',done:false}]};meals.draft={days:[{date:'2026-10-12',meal:'Pasta',prep:''}],groceryList:[{item:'Pasta',qty:'2',done:false}]};editor.actions(root,{meals,capabilities:{mealsEdit:true}},target);root.children[1].onclick();return{editor,elements,calls,messages,meals,get refreshes(){return refreshes;}};
+ const editor=ctx.createMemberMealsEditor({refresh:async()=>{refreshes++;},status:message=>messages.push(message)}),root=new Element();const meals={version:7,days:[{date:'2026-10-05',meal:'Soup',prep:''}],groceryList:[{item:'Bread',qty:'1',done:false}]};meals.snacksList=[{item:'Crackers',qty:'2',done:true}];meals.draft={snacksList:[{item:'Pretzels',qty:'1',done:false}],days:[{date:'2026-10-12',meal:'Pasta',prep:''}],groceryList:[{item:'Pasta',qty:'2',done:false}]};editor.actions(root,{meals,capabilities:{mealsEdit:true}},target);root.children[action].onclick();return{editor,elements,calls,messages,meals,get refreshes(){return refreshes;}};
 }
 const result=(version,rows)=>({meals:{version,groceryList:rows},capabilities:{mealsEdit:true}});
 test('lost response blocks automatic resend and confirms exact version/content through readback',async()=>{
@@ -25,3 +25,7 @@ test('reset during an in-flight save clears editor and suppresses late result/re
 });
 
 test('draft editor saves the selected week and confirms only draft readback',async()=>{const f=browser(()=>new Response(JSON.stringify({ok:true,previousVersion:7,newVersion:8})),'draft');assert.equal(f.elements.mealEditAdd.hidden,false);await f.elements.mealEditSave.onclick();assert.equal(f.calls[0].operation,'edit_draft_groceries');assert.equal(f.calls[0].rows[0].item,'Pasta');f.editor.readback(result(8,f.calls[0].rows));assert.equal(f.elements.mealEditor.hidden,false);f.editor.readback({meals:{version:8,draft:{groceryList:f.calls[0].rows}},capabilities:{mealsEdit:true}});assert.equal(f.elements.mealEditor.hidden,true);});
+
+test('snacks editor posts only snacks and reconciles the selected list',async()=>{
+ for(const target of ['approved','draft']){const f=browser(()=>new Response(JSON.stringify({ok:true,previousVersion:7,newVersion:8})),target,2);assert.equal(f.elements.mealEditAdd.textContent,'Add snack or staple');const qty=f.elements.mealEditRows.children[0].querySelector('[name=qty]');qty.value='4';await f.elements.mealEditSave.onclick();assert.equal(f.calls[0].operation,target==='draft'?'edit_draft_snacks':'edit_snacks');const projected={version:8,snacksList:f.calls[0].rows};f.editor.readback({meals:target==='draft'?{version:8,draft:projected}:projected,capabilities:{mealsEdit:true}});assert.equal(f.elements.mealEditor.hidden,true);}
+});
