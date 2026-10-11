@@ -15,12 +15,26 @@ async function bootMissionControlAuth(){
   try{
     const cfg=await fetch("/api/v1/auth-config",{cache:"no-store"}).then(r=>r.json());
     if(!cfg.ok||!cfg.publishableKey)throw new Error(cfg.error||"Authentication unavailable");
+    // Production Clerk uses the custom domain. A second public alias may serve
+    // the app shell without being able to render its sign-in component.
+    if(cfg.signInOrigin==='https://app.abovethemarkos.com'&&window.location?.hostname==='mission-control-lime-tau.vercel.app'){
+      const link=document.createElement('a');link.textContent='Continue to Mission Control';
+      const path=window.location.pathname;
+      link.href=cfg.signInOrigin+(['/', '/index.html', '/diagnostics.html', '/member.html', '/member-setup.html', '/join.html', '/invite.html'].includes(path)?path:'/');
+      link.className='mc-auth-retry';mount.replaceChildren(link);
+      state.textContent='Sign in on the main Mission Control website.';
+      return;
+    }
     const parts=cfg.publishableKey.split("_");
     if(parts.length<3)throw new Error("Invalid authentication configuration");
     const clerkDomain=atob(parts[2]).slice(0,-1);
     await loadScript("https://"+clerkDomain+"/npm/@clerk/ui@1/dist/ui.browser.js");
     await loadScript("https://"+clerkDomain+"/npm/@clerk/clerk-js@6/dist/clerk.browser.js",{"data-clerk-publishable-key":cfg.publishableKey});
     await window.Clerk.load({ui:{ClerkUI:window.__internal_ClerkUICtor}});
+    window.mcReauthenticate=async()=>{
+      try{await window.Clerk.signOut();location.reload();}
+      catch{state.textContent='Sign-in could not be reset. Reload this page to try again.';const gate=document.getElementById('mcAuthGate');if(gate)gate.style.display='flex';}
+    };
     let signInMounted=false;
     const render=()=>{
       if(window.Clerk.isSignedIn){
