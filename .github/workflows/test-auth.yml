@@ -23,3 +23,6 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Check personal calendar screens with synthetic data
         run: node scripts/check-personal-browser.mjs
+
+      - name: Check member editing screens with synthetic data
+        run: node scripts/check-member-browser.mjs

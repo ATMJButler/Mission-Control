@@ -7,11 +7,11 @@ const editor=createMemberMealsEditor({refresh:()=>load(),status:message=>{get('s
 const personalSchedule=createPersonalSchedule();
 let generation=0,key=null,pending=false,dashboard=null,tab='schedule',listening=false,lastLoadStarted=0,scheduleView=null,mealPlan=null;
 function clear(message){scheduleView=null;personalSchedule.reset();editor.reset();generation++;key=null;pending=false;dashboard=null;tab='schedule';mealPlan=null;get('panel').replaceChildren();get('tabs').hidden=true;get('status').textContent=message;get('refresh').disabled=!sessionKey();}
-function render(){if(!dashboard)return;get('tabs').hidden=false;for(const button of get('tabs').querySelectorAll('button'))button.setAttribute('aria-pressed',String(button.dataset.tab===tab));if(tab==='schedule'&&scheduleView){get('panel').replaceChildren(...scheduleView);return;}renderMemberDashboard(get('panel'),dashboard,tab,{mealPlan:mealPlan||'approved',selectMealPlan:value=>{if(editor.changePlan()){mealPlan=value;render();}}});if(tab==='meals')editor.actions(get('panel'),dashboard,mealPlan||'approved');if(tab==='schedule'&&dashboard.capabilities?.personalSchedule){personalSchedule.mount(get('personalSchedule'),dashboard.profile?.preferences?.timeZone||'America/Chicago');scheduleView=Array.from(get('panel').childNodes);}}
+function render(){if(!dashboard)return;get('tabs').hidden=false;for(const button of get('tabs').querySelectorAll('button'))button.setAttribute('aria-pressed',String(button.dataset.tab===tab));if(tab==='schedule'&&scheduleView){get('panel').replaceChildren(...scheduleView);return;}renderMemberDashboard(get('panel'),dashboard,tab,{mealPlan:mealPlan||'approved',mealActions:root=>editor.actions(root,dashboard,mealPlan||'approved'),selectMealPlan:value=>{if(editor.changePlan()){mealPlan=value;render();}}});if(tab==='schedule'&&dashboard.capabilities?.personalSchedule){personalSchedule.mount(get('personalSchedule'),dashboard.profile?.preferences?.timeZone||'America/Chicago');scheduleView=Array.from(get('panel').childNodes);}}
 async function load({background=false}={}){
  const currentKey=sessionKey();if(!currentKey){clear('Sign in to continue.');return;}
  if(currentKey!==key){clear('Checking household access…');key=currentKey;}if(pending)return;
- const preserve=background&&dashboard!==null;
+ const preserve=dashboard!==null;const scroll={x:window.scrollX,y:window.scrollY};
  lastLoadStarted=Date.now();const current=++generation;pending=true;get('refresh').disabled=true;
  if(!preserve){scheduleView=null;get('status').textContent='Reading your shared workspace…';personalSchedule.reset();get('panel').replaceChildren();get('tabs').hidden=true;}
  try{
@@ -22,7 +22,7 @@ async function load({background=false}={}){
   if(mealPlan===null)mealPlan=dashboard.meals?.draft?'draft':'approved';
   if(mealPlan==='draft'&&!dashboard.meals?.draft)mealPlan='approved';
   if(firstLoad&&dashboard.profile?.preferences?.step===6&&['schedule','budget','meals','family'].includes(dashboard.profile.preferences.startView))tab=dashboard.profile.preferences.startView;
-  get('status').textContent=dashboard.capabilities?.personalSchedule?'Your workspace is ready. Personal calendars stay private.':'Shared data loaded. Personal account connections are still pending.';editor.readback(dashboard);if(!unchanged){scheduleView=null;personalSchedule.reset();render();}
+  get('status').textContent=dashboard.capabilities?.personalSchedule?'Your workspace is ready. Personal calendars stay private.':'Shared data loaded. Personal account connections are still pending.';editor.readback(dashboard);if(!unchanged){scheduleView=null;personalSchedule.reset();render();if(preserve)window.scrollTo?.(scroll.x,scroll.y);}
  }catch(error){if(current!==generation||sessionKey()!==currentKey)return;scheduleView=null;personalSchedule.reset();dashboard=null;if(error.accessDenied||['MEMBER_DASHBOARD_FORBIDDEN','UNAUTHENTICATED'].includes(error.code))editor.reset();get('panel').replaceChildren();get('tabs').hidden=true;get('status').textContent=error.code==='MEMBER_DASHBOARD_DISABLED'?'Your member workspace has not been activated yet.':error.code==='USER_NOT_PROVISIONED'?'Accept your household invitation before opening this workspace.':'Shared data could not be verified. Try refreshing or check household access.';}
  finally{if(current===generation){pending=false;get('refresh').disabled=false;}}
 }
