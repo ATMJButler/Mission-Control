@@ -62,6 +62,8 @@ function setup(t, {loadedVersion = 7, currentVersion = 7, role = "principal"} = 
     toast: message => messages.push(message), setTimeout() {}, renderMeals() {},
     fetch: async (url, options) => { assert.equal(url, "/api/meals"); const body = JSON.parse(options.body); browserRequests.push(body); return post(body); }
   });
+  browser.window={};
+  vm.runInContext(html.slice(html.indexOf("let privateStorageOwner="),html.indexOf("const STALE_DAYS=")),browser);
   vm.runInContext(browserSource, browser, {filename: "app-v5.html Meals functions"});
   return {backend, browser, post, browserRequests, upstreamRequests, messages, storage, status, button, approved};
 }

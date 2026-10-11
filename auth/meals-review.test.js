@@ -26,6 +26,8 @@ function fixture() {
     toast: message => messages.push(message), setTimeout() {}, confirm: () => confirmed,
     fetch: async (url, options) => { requests.push({url, options}); return fetchImpl(url, options); }
   });
+  context.window={};
+  vm.runInContext(readPrivatePersistence(),context);
   vm.runInContext(escapeSource + "\n" + source, context);
   return {context, elements, requests, storage, messages, setFetch: fn => { fetchImpl = fn; }, setConfirmation: value => { confirmed = value; }};
 }
@@ -152,3 +154,5 @@ test("lost save responses require readback, retain local edits, and block blind 
     assert.equal(await f.context.saveMeals(), false); assert.equal(f.requests.length, 1);
   }
 });
+
+function readPrivatePersistence(){const html=fs.readFileSync(new URL("../app-v5.html",import.meta.url),"utf8");return html.slice(html.indexOf("let privateStorageOwner="),html.indexOf("const STALE_DAYS="));}

@@ -64,3 +64,31 @@ test('canonical login hint is production-only and requires an authorized custom 
   let body;const response={setHeader(){return this;},status(){return this;},json(value){body=value;return this;}};context.handler({method:'GET'},response);assert.equal(Boolean(body.signInOrigin),expected);
  }
 });
+
+test('session changes clear private persisted data while preserving the active account and unrelated storage',async()=>{
+ const data=new Map([['missionControl.v4.user_a','private A'],['missionControl.v4.user_b','private B'],['johnMissionControl.v3','legacy private'],['missionControlV3Sync','legacy config'],['other-app','keep']]);
+ const localStorage={get length(){return data.size;},key:i=>[...data.keys()][i],removeItem:key=>data.delete(key)};
+ let listener;const frame={src:'app-v5.html'},mount={innerHTML:''};
+ const elements={core:frame,mcClerkMount:mount,mcAuthState:{},mcAuthGate:{style:{}},mcSignOut:{remove(){}}};
+ const clerk={isSignedIn:true,user:{id:'user_a'},load:async()=>{},unmountSignIn(){},mountSignIn(){},addListener(fn){listener=fn;}};
+ const ctx=vm.createContext({localStorage,window:{Clerk:clerk,addEventListener(){},dispatchEvent(){}},document:{getElementById:id=>elements[id]||null,createElement:()=>({setAttribute(){}}),head:{appendChild:s=>s.onload()}},fetch:async()=>({json:async()=>({ok:true,publishableKey:'pk_test_domain'})}),atob:()=> 'auth.example$',CustomEvent:class{},console});
+ vm.runInContext(read('auth-ui.js'),ctx);await vm.runInContext('bootMissionControlAuth()',ctx);
+ assert.equal(data.get('missionControl.v4.user_a'),'private A');assert.equal(data.has('missionControl.v4.user_b'),false);assert.equal(data.has('johnMissionControl.v3'),false);assert.equal(data.get('other-app'),'keep');
+ data.set('missionControl.v4.user_b','new B');frame.src='app-v5.html';clerk.user={id:'user_b'};listener();
+ assert.equal(frame.src,'about:blank');assert.equal(data.has('missionControl.v4.user_a'),false);assert.equal(data.get('missionControl.v4.user_b'),'new B');
+ clerk.isSignedIn=false;clerk.user=null;listener();assert.equal(data.has('missionControl.v4.user_b'),false);assert.equal(data.get('other-app'),'keep');
+});
+test('signed-out bootstrap clears all app private namespaces and only app-owned browser caches',async()=>{
+ const data=new Map([['missionControl.v4.user_a','A'],['missionControl.v4.user_b','B'],['other-app','keep']]);const deleted=[];
+ const caches={keys:async()=>['mission-control-v4','other-cache'],delete:async name=>deleted.push(name)};
+ const ctx=vm.createContext({localStorage:{get length(){return data.size;},key:i=>[...data.keys()][i],removeItem:key=>data.delete(key)},caches,window:{caches,addEventListener(){}}});
+ vm.runInContext(read('auth-ui.js'),ctx);await vm.runInContext('clearMissionControlPrivateCache()',ctx);
+ assert.deepEqual([...data.keys()],['other-app']);assert.deepEqual(deleted,['mission-control-v4']);
+});
+test('late principal responses cannot repopulate storage after session invalidation or switch',()=>{
+ const source=read('app-v5.html');const start=source.indexOf('let privateStorageOwner=');const end=source.indexOf('const STALE_DAYS=',start);const writes=[];
+ const ctx=vm.createContext({window:{},storageKey:()=> 'missionControl.v4.user_a',localStorage:{setItem:(...args)=>writes.push(args)},state:{projects:['synthetic']},LEGACY_KEY:'legacy'});
+ vm.runInContext(source.slice(start,end),ctx);vm.runInContext('persistPrivateState()',ctx);assert.equal(writes.length,1);
+ ctx.window.mcPrivateSessionEnded=true;vm.runInContext('persistPrivateState()',ctx);assert.equal(writes.length,1);
+ ctx.window.mcPrivateSessionEnded=false;ctx.storageKey=()=> 'missionControl.v4.user_b';vm.runInContext('persistPrivateState()',ctx);assert.equal(writes.length,1);
+});

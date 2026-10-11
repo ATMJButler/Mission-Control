@@ -29,6 +29,7 @@
       lastCheck=Date.now();
       if(!response.ok||body.ok!==true){
         reauthenticate=response.status===401;
+        if(response.status===401||response.status===403)void window.mcClearPrivateCache?.();
         hold(body.code==="USER_NOT_PROVISIONED"?"Your account is signed in but has not joined a household. Use the invitation code you received.":
           response.status===401?"Your session needs a fresh sign-in.":"Household access could not be confirmed. Try again or contact your household principal.",
           {retry:true,join:body.code==="USER_NOT_PROVISIONED"});return;
