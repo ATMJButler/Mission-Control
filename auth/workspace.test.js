@@ -66,7 +66,7 @@ function browser({role="principal",upstream}={}){
   vm.runInContext(fs.readFileSync(new URL("../workspace-ui.js",import.meta.url),"utf8"),context);
   events.get("DOMContentLoaded")();
   const settle=async()=>{for(let i=0;i<8;i++)await new Promise(resolve=>setImmediate(resolve));};
-  return{elements,calls,clerk,listeners,events,settle,authenticate:()=>events.get("mc-authenticated")()};
+  return{elements,calls,clerk,listeners,events,settle,window,authenticate:()=>events.get("mc-authenticated")()};
 }
 test("principal browser clears old caches then loads exactly one verified workspace",async()=>{
   const f=browser();f.authenticate();await f.settle();assert.equal(f.calls[0].cacheDelete,"old-api-cache");
@@ -120,4 +120,11 @@ test("dashboard gate exposes routing only to secondary and never changes princip
 });
 test("secondary dashboard routing never opens the principal iframe",async()=>{
  const f=browser({upstream:async()=>new Response(JSON.stringify({ok:true,workspace:{role:"secondary",principalWorkspace:false,memberDashboardReady:true,memberSetupReady:true}}))});f.authenticate();await f.settle();assert.equal(f.elements.core.src,"/member.html");assert.equal(f.elements.mcJuliePreview.hidden,true);
+});
+
+test('expired workspace session offers fresh sign-in rather than repeating rejected checks',async()=>{
+ const f=browser({upstream:async()=>new Response(JSON.stringify({ok:false,code:'UNAUTHENTICATED'}),{status:401})});let recoveries=0;f.window.mcReauthenticate=()=>{recoveries++;};
+ // Authentication owns sign-out and remount; routing must invoke it on demand.
+ f.authenticate();await f.settle();assert.equal(f.elements.mcWorkspaceRetry.textContent,'Sign in again');
+ const requests=f.calls.length;f.elements.mcWorkspaceRetry.click();await f.settle();assert.equal(recoveries,1);assert.equal(f.calls.length,requests);assert.equal(f.elements.core.src,'about:blank');
 });

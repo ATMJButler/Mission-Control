@@ -50,3 +50,17 @@ test('custom app domain uses protected sync in fresh and malformed browser stora
  const ctx=vm.createContext({location:{hostname:'localhost'},localStorage:{getItem:()=>JSON.stringify({url:'http://local.invalid',token:'local'})},SYNC_KEY:'sync',defaultDeviceLabel:()=> 'Desktop'});
  assert.equal(vm.runInContext(fn+';syncConfig()',ctx).url,'http://local.invalid');
 });
+
+test('production alias offers the canonical sign-in page before loading Clerk',async()=>{
+ let scripts=0;const mount={replaceChildren(link){this.link=link;}},state={};
+ const ctx=vm.createContext({window:{location:{hostname:'mission-control-lime-tau.vercel.app',pathname:'/diagnostics.html'},addEventListener(){}},document:{getElementById:id=>id==='mcClerkMount'?mount:state,createElement:()=>({}),head:{appendChild(){scripts++;}}},fetch:async()=>({json:async()=>({ok:true,publishableKey:'pk_live_fixture',signInOrigin:'https://app.abovethemarkos.com'})}),console});
+ vm.runInContext(read('auth-ui.js'),ctx);await vm.runInContext('bootMissionControlAuth()',ctx);
+ assert.equal(scripts,0);assert.equal(mount.link.href,'https://app.abovethemarkos.com/diagnostics.html');assert.match(state.textContent,/main Mission Control website/);
+});
+test('canonical login hint is production-only and requires an authorized custom origin',()=>{
+ for(const [environment,key,origins,expected]of [['production','pk_live_fixture','https://app.abovethemarkos.com',true],['preview','pk_live_fixture','https://app.abovethemarkos.com',false],['production','pk_test_fixture','https://app.abovethemarkos.com',false],['production','pk_live_fixture','https://other.invalid',false]]){
+  const context=vm.createContext({process:{env:{VERCEL_ENV:environment,CLERK_PUBLISHABLE_KEY:key,MC_AUTHORIZED_PARTIES:origins}}});
+  vm.runInContext(read('api/v1/auth-config.js').replace('export default function handler','globalThis.handler=function handler'),context);
+  let body;const response={setHeader(){return this;},status(){return this;},json(value){body=value;return this;}};context.handler({method:'GET'},response);assert.equal(Boolean(body.signInOrigin),expected);
+ }
+});
