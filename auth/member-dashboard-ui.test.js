@@ -73,5 +73,5 @@ test('changed background dashboard reprojects data; denied access clears the pre
 test('switching workspace sections restores the same schedule view without another render',async()=>{
  const data={...dashboard('schedule'),capabilities:{personalSchedule:true}};const f=browser(()=>response(data));f.authenticate();await f.settle();const view=f.elements.panel.children[0];
  f.buttons[1].onclick();assert.equal(f.renders.length,2);f.buttons[0].onclick();assert.equal(f.renders.length,2);assert.equal(f.elements.panel.children[0],view);assert.equal(f.calls.length,1);
- f.elements.refresh.onclick();await f.settle();assert.equal(f.calls.length,2);assert.equal(f.renders.length,2);assert.equal(f.elements.panel.children[0],view);
+ f.elements.refresh.onclick();await f.settle();assert.equal(f.calls.length,2);assert.equal(f.renders.length,3);
 });

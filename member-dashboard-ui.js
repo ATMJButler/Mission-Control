@@ -18,7 +18,7 @@ async function load({background=false}={}){
   const response=await fetch('/api/v1/member',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'dashboard'})});const body=await response.json();
   if(current!==generation||sessionKey()!==currentKey)return;
   if(!response.ok||body.ok!==true||!body.dashboard){const error=new Error('Workspace rejected');error.code=body.code;error.accessDenied=response.status===401||response.status===403;throw error;}
-  const firstLoad=dashboard===null,unchanged=preserve&&JSON.stringify(dashboard)===JSON.stringify(body.dashboard);dashboard=body.dashboard;
+  const firstLoad=dashboard===null,unchanged=preserve&&(background||tab!=='schedule'||!body.dashboard.capabilities?.personalSchedule)&&JSON.stringify(dashboard)===JSON.stringify(body.dashboard);dashboard=body.dashboard;
   if(mealPlan===null)mealPlan=dashboard.meals?.draft?'draft':'approved';
   if(mealPlan==='draft'&&!dashboard.meals?.draft)mealPlan='approved';
   if(firstLoad&&dashboard.profile?.preferences?.step===6&&['schedule','budget','meals','family'].includes(dashboard.profile.preferences.startView))tab=dashboard.profile.preferences.startView;
