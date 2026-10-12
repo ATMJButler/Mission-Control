@@ -3,7 +3,7 @@ import {renderMemberDashboard} from './member-dashboard-view.js';
 import {createPersonalSchedule} from './personal-schedule-ui.js';
 const get=id=>document.getElementById(id);
 const sessionKey=()=>window.Clerk?.isSignedIn&&window.Clerk.user?.id&&window.Clerk.session?.id?window.Clerk.user.id+':'+window.Clerk.session.id:null;
-const editor=createMemberMealsEditor({refresh:()=>load(),status:message=>{get('status').textContent=message;}});
+const editor=createMemberMealsEditor({refresh:()=>load(),status:message=>{get('status').textContent=message;},changed:()=>{const controls=get('panel').querySelector('.meal-actions');if(controls&&dashboard){controls.replaceChildren();editor.actions(controls,dashboard,mealPlan||'approved');}}});
 const personalSchedule=createPersonalSchedule();
 let generation=0,key=null,pending=false,dashboard=null,tab='schedule',listening=false,lastLoadStarted=0,scheduleView=null,mealPlan=null,scheduleDate=null;
 function clear(message){scheduleView=null;personalSchedule.reset();editor.reset();generation++;key=null;pending=false;dashboard=null;tab='schedule';mealPlan=null;get('panel').replaceChildren();get('tabs').hidden=true;get('status').textContent=message;get('refresh').disabled=!sessionKey();}

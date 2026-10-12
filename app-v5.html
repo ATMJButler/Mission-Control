@@ -185,7 +185,7 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}.app{min-height:
   <div class="section-title"><h3>This week</h3><div class="hint">Edit the meal directly. Prep notes are optional and only surface when useful.</div></div>
   <div class="list" id="mealWeek"></div>
   <div class="two-col" style="margin-top:12px">
-    <div class="panel"><div class="section-title" style="margin-top:0"><h3>Grocery list</h3><button class="btn" id="addGroceryBtn">+ Add</button></div><div class="hint">Shared Butler Household list. Check items off as they go into the cart.</div><div class="list" id="groceryList" style="margin-top:9px"></div></div><div class="panel"><div class="section-title"><h3>Snacks &amp; staples</h3><button class="btn" type="button" onclick="addSnack()">+ Add</button></div><div class="hint">Recurring items outside your meals. Items and quantities carry into new weeks; bought checkmarks reset.</div><div class="list" id="snacksList"></div></div>
+    <div class="panel"><div class="section-title" style="margin-top:0"><h3>Grocery list</h3><div class="actions"><button class="btn" type="button" id="groceriesOrderedBtn" onclick="groceriesOrdered()">Groceries ordered</button><button class="btn" id="addGroceryBtn">+ Add</button></div></div><div class="hint">Check items off as they go into the cart. Groceries ordered clears this list and resets snack and staple checkmarks for the next shop.</div><div class="list" id="groceryList" style="margin-top:9px"></div></div><div class="panel"><div class="section-title"><h3>Snacks &amp; staples</h3><button class="btn" type="button" onclick="addSnack()">+ Add</button></div><div class="hint">Recurring items outside your meals. Items and quantities carry into new weeks; bought checkmarks reset.</div><div class="list" id="snacksList"></div></div>
   </div>
 </section>
 
@@ -742,6 +742,24 @@ async function planNextWeek(){
     state.meals=JSON.parse(JSON.stringify(x.draft));state.meals.status="draft";persistPrivateState();renderMeals();if(status){status.textContent="Next week plan built ✓ Save changes to share it";status.style.color="var(--good)"}toast("Next week meal plan ready")
   }catch(e){if(status){status.textContent="Planner not ready — "+String(e.message||e);status.style.color="var(--warn)"}toast("Meal planner needs its planning service")}
   finally{if(btn){btn.disabled=false;btn.textContent="Plan Next Week"}}
+}
+let groceriesOrdering=false;
+async function groceriesOrdered(){
+ if(groceriesOrdering||state.mealsNeedsReview){toast('Review the shared list before resetting it');return false;}
+ const snapshot=mealsDurable,plan=snapshot?.draft||snapshot?.approved,target=snapshot?.draft?'draft':'approved',owner=storageKey();
+ if(!plan||!Number.isSafeInteger(snapshot.version)||state.meals.weekStart!==plan.weekStart){toast('Save or reload the shared week before resetting its list');return false;}
+ if(!confirm('Clear the meal-grocery list for week '+plan.weekStart+' and reset snack and staple checkmarks? Meals and recurring items will stay.'))return false;
+ const button=document.getElementById('groceriesOrderedBtn');groceriesOrdering=true;if(button)button.disabled=true;
+ const expectedSnacks=(plan.snacksList||[]).map(row=>({item:row.item,qty:row.qty,done:false}));
+ try{
+  try{await fetch('/api/v1/member',{method:'POST',credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(30000),headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:target==='draft'?'order_draft_groceries':'order_groceries',expectedVersion:snapshot.version,rows:[]})});}catch{}
+  const response=await fetch('/api/meals',{cache:'no-store',signal:AbortSignal.timeout(15000)}),body=await response.json();
+  if(window.mcPrivateSessionEnded||owner!==storageKey())return false;
+  const shared=body.meals?.[target],snacks=(shared?.snacksList||[]).map(row=>({item:row.item,qty:row.qty,done:row.done===true}));
+  if(!response.ok||body.ok!==true||body.meals?.version!==snapshot.version+1||shared?.weekStart!==plan.weekStart||shared.groceriesOrderedVersion!==body.meals.version||shared.groceryList?.length!==0||JSON.stringify(snacks)!==JSON.stringify(expectedSnacks))throw Error('UNKNOWN: Shopping reset could not be confirmed');
+  mealsDurable=body.meals;if(state.meals.weekStart===plan.weekStart){state.meals.groceryList=[];state.meals.snacksList=JSON.parse(JSON.stringify(shared.snacksList||[]));persistPrivateState();renderMeals();}toast('Groceries cleared; snacks and staples are ready for the next shop');return true;
+ }catch(error){if(window.mcPrivateSessionEnded||owner!==storageKey())return false;showMealReviewAction(Error('UNKNOWN: Shopping reset could not be confirmed'));toast('Reset could not be confirmed. Review the shared list before trying again');return false;}
+ finally{groceriesOrdering=false;if(button)button.disabled=false;}
 }
 function addSnack(){ensureMealWeek();if(state.meals.snacksList.length>=200){toast('The snacks list is full');return;}const item=prompt('Add a snack or staple');if(!item?.trim())return;const qty=prompt('Quantity','');if(qty===null)return;if(item.trim().length>200||qty.trim().length>100){toast('Use a shorter item name or quantity');return;}state.meals.snacksList.push({item:item.trim(),qty:qty.trim(),done:false});saveMeals(false);renderMeals()}
 function addGrocery(){const item=prompt("Add grocery item");if(!item)return;state.meals.groceryList.push({item:item.trim(),qty:"",done:false,addedAt:new Date().toISOString()});saveMeals(false);renderMeals()}

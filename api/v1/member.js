@@ -24,9 +24,9 @@ export default async function handler(req,res){
       const result=await handlePersonalConnection(body,{actor:auth.userId,householdId:auth.householdId,sessionId:identity.sessionId});
       return res.status(200).json(result);
     }
-    const saving=body?.operation==='save',editing=['edit_meals','edit_groceries','edit_draft_meals','edit_draft_groceries','edit_snacks','edit_draft_snacks'].includes(body?.operation);
+    const saving=body?.operation==='save',editing=['edit_meals','edit_groceries','edit_draft_meals','edit_draft_groceries','edit_snacks','edit_draft_snacks','order_groceries','order_draft_groceries'].includes(body?.operation);
     const fields=editing?['operation','householdId','expectedVersion','rows']:saving?['operation','householdId','expectedVersion','preferences']:['operation','householdId'];
-    if(!body||typeof body!=='object'||Array.isArray(body)||!['read','save','dashboard','edit_meals','edit_groceries','edit_draft_meals','edit_draft_groceries','edit_snacks','edit_draft_snacks'].includes(body.operation)||Object.keys(body).some(key=>!fields.includes(key))||
+    if(!body||typeof body!=='object'||Array.isArray(body)||!['read','save','dashboard','edit_meals','edit_groceries','edit_draft_meals','edit_draft_groceries','edit_snacks','edit_draft_snacks','order_groceries','order_draft_groceries'].includes(body.operation)||Object.keys(body).some(key=>!fields.includes(key))||
       (body.householdId!==undefined&&(typeof body.householdId!=='string'||!body.householdId.trim()||body.householdId.length>120))||
       (editing&&(!Number.isSafeInteger(body.expectedVersion)||body.expectedVersion<1||body.expectedVersion>=Number.MAX_SAFE_INTEGER||!validateMemberMealEdit(body.operation,body.rows)))||
       (saving&&(!Number.isSafeInteger(body.expectedVersion)||body.expectedVersion<0||body.expectedVersion>=Number.MAX_SAFE_INTEGER||!validateSetupPreferences(body.preferences))))return res.status(400).json({ok:false,code:'MEMBER_SETUP_INVALID'});
