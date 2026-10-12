@@ -2,7 +2,7 @@ const object=value=>value&&typeof value==='object'&&!Array.isArray(value);
 const text=(value,max,blank=false)=>typeof value==='string'&&value.length<=max&&(blank||value.trim().length>0);
 const date=value=>{try{return /^\d{4}-\d{2}-\d{2}$/.test(value)&&new Date(value+'T00:00:00Z').toISOString().slice(0,10)===value;}catch{return false;}};
 export function validateMemberMealEdit(operation,rows){
- if(!Array.isArray(rows))return false;
+ if(!Array.isArray(rows))return false;if(['order_groceries','order_draft_groceries'].includes(operation))return rows.length===0;
  operation=({edit_draft_meals:'edit_meals',edit_draft_groceries:'edit_groceries',edit_snacks:'edit_groceries',edit_draft_snacks:'edit_groceries'})[operation]||operation;
  if(operation==='edit_meals')return rows.length>0&&rows.length<=7&&new Set(rows.map(row=>row?.date)).size===rows.length&&rows.every(row=>object(row)&&Object.keys(row).length===3&&Object.keys(row).every(key=>['date','meal','prep'].includes(key))&&text(row.date,10)&&date(row.date)&&text(row.meal,200)&&text(row.prep,500,true));
  if(operation==='edit_groceries')return rows.length<=200&&rows.every(row=>object(row)&&Object.keys(row).length===3&&Object.keys(row).every(key=>['item','qty','done'].includes(key))&&text(row.item,200)&&text(row.qty,100,true)&&typeof row.done==='boolean');

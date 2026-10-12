@@ -10,7 +10,7 @@
 html,body{width:100%;height:100%;margin:0;background:#07111f;overflow:hidden}#core{display:block;width:100%;height:100%;border:0;background:#07111f}
 </style>
 <link rel="stylesheet" href="./auth-ui.css">
-<script src="./auth-ui.js" defer></script>
+<script src="./shared-dinner.js"></script><script src="./auth-ui.js" defer></script>
 <script src="./workspace-ui.js?v=1" defer></script>
 </head>
 <body>
@@ -30,7 +30,7 @@ frame.addEventListener('load',()=>{try{frame.contentWindow.MC_MEAL_CONSTRAINTS=M
 const BUDGET_URL='https://docs.google.com/spreadsheets/d/1i35k09HfZ3CEkj9PVoMh8pF7xPI2g2hX2FBsMsbo3Q4/edit';
 const REVIEW_URL='https://docs.google.com/spreadsheets/d/1i35k09HfZ3CEkj9PVoMh8pF7xPI2g2hX2FBsMsbo3Q4/edit?gid=151895354#gid=151895354';
 let lastFinanceStamp='';
-let lastAgendaStamp='';
+let lastAgendaStamp='';let lastDinnerStamp='',lastDinnerRead=0;
 
 const AGENDA_CSS=`
 .agenda-hero{background:linear-gradient(180deg,rgba(29,47,76,.98),rgba(10,25,43,.98));border-color:#40638c}
@@ -53,7 +53,7 @@ const AGENDA_HTML=`
   </div>
   <div class="agenda-grid">
     <div class="panel"><h3>Schedule</h3><div class="agenda-list" id="agendaList" style="margin-top:10px"></div></div>
-    <div class="agenda-side">
+    <div class="agenda-side"><div class="panel" id="agendaDinner"><h3>Dinner tonight</h3><div id="agendaDinnerBody"></div></div>
       <div class="panel"><h3>Day at a glance</h3><div class="agenda-summary" id="agendaSummary"></div></div>
       <div class="panel"><h3>Top outcomes</h3><div class="list" id="agendaOutcomes"></div></div>
       <div class="panel"><h3>Planning note</h3><div class="agenda-note" id="agendaNote">Mission Control protects fixed commitments first, then places the highest-value work into the remaining space.</div></div>
@@ -131,7 +131,7 @@ if(linkedProject){
 }
 p.agendaData=JSON.stringify(snap);stampProject(p,'Mission Control — Agenda');localStorage.setItem(KEY,JSON.stringify(state));const synced=await pushProjects(false);if(synced!==false){await pullProjects(false);const checkProject=state.projects.find(x=>x&&x.agendaData),checkSnap=checkProject?JSON.parse(checkProject.agendaData):null,checkItems=checkSnap&&Array.isArray(checkSnap.items)?checkSnap.items:[],checkItem=checkItems.find((x,i)=>window.__mcAgendaItemKey(x,i)===String(itemKey));if(!checkItem||checkItem.status!==status)throw new Error('Agenda status did not persist. Update the Mission Control Apps Script deployment and try again.')}return{ok:true,synced:synced!==false,snapshot:snap}}catch(e){return{ok:false,error:String(e&&e.message||e)}}};window.__mcPrivateSnapshotBridge=true;`;d.body.appendChild(sc)}
   const f=d.getElementById('finRefresh');if(f&&!f.dataset.bound){f.dataset.bound='1';f.onclick=refreshFinance}
-  const a=d.getElementById('agendaRefresh');if(a&&!a.dataset.bound){a.dataset.bound='1';a.onclick=async()=>{a.textContent='Refreshing…';if(win().__mcPrivatePull)await win().__mcPrivatePull();setTimeout(()=>{renderAgenda(true);a.textContent='Refresh'},350)}}
+  const a=d.getElementById('agendaRefresh');if(a&&!a.dataset.bound){a.dataset.bound='1';a.onclick=async()=>{a.textContent='Refreshing…';if(win().__mcPrivatePull)await win().__mcPrivatePull();if(win().refreshSharedDinner)await win().refreshSharedDinner();setTimeout(()=>{renderAgenda(true);a.textContent='Refresh'},350)}}
   const t=d.getElementById('agendaTodayBtn');if(t&&!t.dataset.bound){t.dataset.bound='1';t.onclick=()=>win().switchPage('today')}
   return true
 }
@@ -163,9 +163,10 @@ function showAgendaAttention(kind){
   d.getElementById('agendaAttentionClose').onclick=()=>detail.style.display='none';
   [...detail.querySelectorAll('[data-attention-project]')].forEach(el=>el.onclick=()=>{if(typeof win().openUpdate==='function')win().openUpdate(el.dataset.attentionProject)});
 }
+function renderAgendaDinner(){const d=doc(),target=d?.getElementById('agendaDinnerBody');if(!target)return;const date=MCSharedDinner.dateKey(),snapshot=win().sharedMealSnapshot?.(),dinner=MCSharedDinner.forDate(snapshot,date),stamp=JSON.stringify([date,dinner]);if(stamp===lastDinnerStamp&&target.childNodes.length)return;lastDinnerStamp=stamp;target.replaceChildren();const label=d.createElement('p');label.className='hint';label.textContent=date;target.append(label);const meal=d.createElement('strong');meal.textContent=dinner?.meal||'No shared meal is available for tonight.';target.append(meal);if(dinner?.prep){const prep=d.createElement('p');prep.className='agenda-note';prep.textContent='Prep: '+dinner.prep;target.append(prep);}}
 function renderAgenda(showToast=false){
   if(!installBridge())return;
-  renderAgendaAttention();
+  renderAgendaAttention();renderAgendaDinner();
   const d=doc(),snap=win().__mcAgendaSnapshot?win().__mcAgendaSnapshot():null;
   const list=d.getElementById('agendaList'),summary=d.getElementById('agendaSummary'),outcomes=d.getElementById('agendaOutcomes');
   if(!snap){d.getElementById('agendaAsOf').textContent='Today’s agenda has not reached this device yet. The Daily Operations Reconciler will publish the optimized plan here.';list.innerHTML='<div class="agenda-empty">No agenda snapshot is available yet. Refresh after the next Mission Control sync.</div>';summary.innerHTML='';outcomes.innerHTML='';return}
@@ -248,7 +249,7 @@ function renderFinance(showToast=false){
   if(showToast&&win().toast)win().toast('Finances refreshed');
 }
 
-frame.addEventListener('load',()=>{let tries=0;const ready=setInterval(async()=>{tries++;if(installBridge()){clearInterval(ready);win().switchPage('agenda');renderAgenda();renderFinance();if(win().__mcPrivatePull){let ok=await win().__mcPrivatePull();for(let i=0;!ok&&i<3;i++){await new Promise(r=>setTimeout(r,700*(i+1)));ok=await win().__mcPrivatePull()}renderAgenda();renderFinance();if(ok)window.dispatchEvent(new CustomEvent('mc-private-sync-ready'));}setTimeout(()=>{renderAgenda();renderFinance();window.dispatchEvent(new CustomEvent('mc-private-sync-ready'))},1200);setInterval(()=>{const f=win().__mcFinanceSnapshot?win().__mcFinanceSnapshot():null;if(f&&f.asOf!==lastFinanceStamp)renderFinance();const a=win().__mcAgendaSnapshot?win().__mcAgendaSnapshot():null;const stamp=a&&(a.statusUpdatedAt||a.updatedAt||a.asOf||a.date);if(stamp&&stamp!==lastAgendaStamp)renderAgenda()},5000)}else if(tries>40)clearInterval(ready)},100)});
+frame.addEventListener('load',()=>{let tries=0;const ready=setInterval(async()=>{tries++;if(installBridge()){clearInterval(ready);win().switchPage('agenda');renderAgenda();renderFinance();if(win().__mcPrivatePull){let ok=await win().__mcPrivatePull();for(let i=0;!ok&&i<3;i++){await new Promise(r=>setTimeout(r,700*(i+1)));ok=await win().__mcPrivatePull()}renderAgenda();renderFinance();if(ok)window.dispatchEvent(new CustomEvent('mc-private-sync-ready'));}setTimeout(()=>{renderAgenda();renderFinance();window.dispatchEvent(new CustomEvent('mc-private-sync-ready'))},1200);setInterval(()=>{renderAgendaDinner();if(!document.hidden&&Date.now()-lastDinnerRead>=60000&&doc().getElementById('page-agenda')?.classList.contains('active')){lastDinnerRead=Date.now();win().refreshSharedDinner?.().then(()=>renderAgendaDinner());}const f=win().__mcFinanceSnapshot?win().__mcFinanceSnapshot():null;if(f&&f.asOf!==lastFinanceStamp)renderFinance();const a=win().__mcAgendaSnapshot?win().__mcAgendaSnapshot():null;const stamp=a&&(a.statusUpdatedAt||a.updatedAt||a.asOf||a.date);if(stamp&&stamp!==lastAgendaStamp)renderAgenda()},5000)}else if(tries>40)clearInterval(ready)},100)});
 </script>
 <script src="./finance-review.js"></script>
 <script src="./budget-drilldown.js"></script>
