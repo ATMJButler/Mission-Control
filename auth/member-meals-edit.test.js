@@ -27,7 +27,7 @@ test('upcoming grocery and meal edits preserve the approved week and draft metad
 });
 test('upcoming edits cannot create a draft or target the approved week; both weeks share conflicts',()=>{
  assert.equal(harness().post(body({operation:'edit_draft_groceries'})).error,'MEMBER_MEALS_UNAVAILABLE');
- for(const weekStart of ['2026-10-05','2026-02-30']){const h=upcomingHarness(),rows=h.rows('Meals'),raw=JSON.parse(rows[3][6]);raw.draft.weekStart=weekStart;rows[3][6]=JSON.stringify(raw);h.sheet('Meals',rows);assert.equal(h.post(body({operation:'edit_draft_groceries'})).error,'MEMBER_MEALS_INVALID');assert.equal(JSON.parse(h.rows('Meals')[3][6]).version,7);}
+ for(const weekStart of ['2026-09-28','2026-02-30']){const h=upcomingHarness(),rows=h.rows('Meals'),raw=JSON.parse(rows[3][6]);raw.draft.weekStart=weekStart;rows[3][6]=JSON.stringify(raw);h.sheet('Meals',rows);assert.equal(h.post(body({operation:'edit_draft_groceries'})).error,'MEMBER_MEALS_INVALID');assert.equal(JSON.parse(h.rows('Meals')[3][6]).version,7);}
  const h=upcomingHarness();assert.equal(h.post(body({operation:'edit_draft_groceries'})).ok,true);assert.equal(h.post(body()).error,'MEMBER_MEALS_CONFLICT');
 });
 test('shared draft read exposes planning fields without private metadata',()=>{const h=upcomingHarness(),value=h.call('memberMealsRead_','home').value;assert.equal(value.draft.weekStart,'2026-10-12');assert.equal(value.draft.days[0].meal,'Pasta');assert.equal(value.draft.settings,undefined);assert.equal(value.draft.days[0].recipe,undefined);assert.equal(value.approved.weekStart,'2026-10-05');});
@@ -45,4 +45,7 @@ test('snacks edits are scoped to the selected plan and share grocery conflict pr
 test('snack edits reject revoked roles and invalid private fields before writing',()=>{
  const h=harness(),rows=h.rows('Household Memberships');rows[1][3]='extended';h.sheet('Household Memberships',rows);assert.equal(h.post(body({operation:'edit_snacks'})).ok,false);assert.equal(JSON.parse(h.rows('Meals')[3][6]).version,7);
  assert.equal(validateMemberMealEdit('edit_snacks',[{...groceries[0],private:'no'}]),false);
+});
+test('same-week shared working plan is readable and editable without approval',()=>{
+ const h=upcomingHarness(),rows=h.rows('Meals'),raw=JSON.parse(rows[3][6]);raw.draft.weekStart='2026-10-05';raw.draft.days[0].date='2026-10-05';rows[3][6]=JSON.stringify(raw);h.sheet('Meals',rows);assert.equal(h.call('memberMealsRead_','home').value.draft.weekStart,'2026-10-05');assert.equal(h.post(body({operation:'edit_draft_groceries'})).ok,true);const after=JSON.parse(h.rows('Meals')[3][6]);assert.deepEqual(after.draft.groceryList,groceries);assert.deepEqual(after.approved,raw.approved);
 });

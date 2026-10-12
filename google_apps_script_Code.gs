@@ -371,7 +371,7 @@ function memberMealsRead_(householdId){
       return{weekStart:memberText_(plan.weekStart),days:plan.days.map(day=>({date:memberText_(day.date),meal:memberText_(day.meal),prep:memberText_(day.prep)})),groceryList:grocery.map(item=>({item:memberText_(item.item),qty:memberText_(item.qty),done:item.done===true})),...(Array.isArray(plan.snacksList)?{snacksList:snacks.map(item=>({item:memberText_(item.item),qty:memberText_(item.qty),done:item.done===true}))}:{})};
     };
     const approved=project(raw.approved),candidate=project(raw.draft);
-    const draft=candidate&&candidate.days.length&&isProjectCalendarDate_(candidate.weekStart)&&(!approved||!approved.weekStart||candidate.weekStart>approved.weekStart)?candidate:null;
+    const draft=candidate&&candidate.days.length&&isProjectCalendarDate_(candidate.weekStart)&&(!approved||!approved.weekStart||candidate.weekStart>=approved.weekStart)?candidate:null;
     if(raw.approved&&!approved)throw new Error('Invalid approved plan');
     if(!approved&&!draft)return{state:'missing',value:null};
     return{state:'available',value:{householdId:householdId,version:Number.isSafeInteger(raw.version)&&raw.version>0?raw.version:null,...(approved?{approved:approved}:{}),...(draft?{draft:draft}:{})}};
@@ -428,7 +428,7 @@ function editMemberMeals_(body){
     if(current.householdId!==body.householdId)throw new Error('MEMBER_MEALS_FORBIDDEN');
     const draftEdit=['edit_draft_meals','edit_draft_groceries','edit_draft_snacks'].includes(body.operation),target=draftEdit?'draft':'approved',plan=current[target];
     if(!Number.isSafeInteger(current.version)||current.version<1||!memberObject_(plan)||!Array.isArray(plan.days))throw new Error('MEMBER_MEALS_UNAVAILABLE');
-    if(draftEdit&&(!isProjectCalendarDate_(plan.weekStart)||(current.approved&&plan.weekStart<=current.approved.weekStart)))throw new Error('MEMBER_MEALS_INVALID');
+    if(draftEdit&&(!isProjectCalendarDate_(plan.weekStart)||(current.approved&&plan.weekStart<current.approved.weekStart)))throw new Error('MEMBER_MEALS_INVALID');
     if(current.version!==body.expectedVersion)throw new Error('MEMBER_MEALS_CONFLICT');
     const next=JSON.parse(JSON.stringify(current));
     if(['edit_meals','edit_draft_meals'].includes(body.operation)){

@@ -56,17 +56,17 @@ test("workspace denies anonymous, revoked, wrong-household and authority-smuggli
 
 function browser({role="principal",upstream}={}){
   const events=new Map(),documentEvents=new Map(),calls=[],listeners=[];
-  const names=["core","mcWorkspaceGate","mcWorkspaceStatus","mcWorkspaceRetry","mcWorkspaceJoin","mcJuliePreview","mcOnboard"];
+  const names=["core","mcWorkspaceGate","mcWorkspaceStatus","mcWorkspaceRetry","mcWorkspaceJoin","mcJuliePreview","mcOnboard","mcWorkspaceNotice"];
   const elements=Object.fromEntries(names.map(name=>[name,{src:"about:blank",dataset:{src:"./app-v5.html"},style:{},hidden:true,disabled:false,textContent:"",classList:{remove(){}},setAttribute(){},getAttribute(key){return this[key]},addEventListener(type,fn){this[type]=fn}}]));
   const clerk={isSignedIn:true,user:{id:"offline-user"},session:{id:"offline-session"},addListener:fn=>listeners.push(fn)};
   const window={Clerk:clerk,addEventListener:(name,fn)=>events.set(name,fn)};
   const caches={keys:async()=>["old-api-cache"],delete:async name=>{calls.push({cacheDelete:name});return true}};window.caches=caches;
-  const context=vm.createContext({window,caches,Date,JSON,document:{hidden:false,getElementById:id=>elements[id],addEventListener:(name,fn)=>documentEvents.set(name,fn)},
+  const context=vm.createContext({window,caches,Date,JSON,AbortSignal,document:{hidden:false,getElementById:id=>elements[id],addEventListener:(name,fn)=>documentEvents.set(name,fn)},
     setInterval(){},fetch:async(url,opts)=>{calls.push({url,opts});return upstream?upstream():new Response(JSON.stringify({ok:true,workspace:{role,principalWorkspace:role==="principal",memberSetupReady:false}}));}});
   vm.runInContext(fs.readFileSync(new URL("../workspace-ui.js",import.meta.url),"utf8"),context);
   events.get("DOMContentLoaded")();
   const settle=async()=>{for(let i=0;i<8;i++)await new Promise(resolve=>setImmediate(resolve));};
-  return{elements,calls,clerk,listeners,events,settle,window,authenticate:()=>events.get("mc-authenticated")()};
+  return{elements,calls,clerk,listeners,events,documentEvents,settle,window,authenticate:()=>events.get("mc-authenticated")()};
 }
 test("principal browser clears old caches then loads exactly one verified workspace",async()=>{
   const f=browser();f.authenticate();await f.settle();assert.equal(f.calls[0].cacheDelete,"old-api-cache");
@@ -133,4 +133,14 @@ test('legacy Meals reads and writes are principal-only; members retain scoped ed
  for(const role of ['secondary','extended']){const f=route(t,'../api/meals.js',{role});for(const method of ['GET','POST'])for(const operation of ['save_draft','approve']){const response=await f.request(method,{operation,expectedVersion:7,meals:{draft:{days:[]}}});assert.equal(response.status,403);assert.equal(f.calls.length,0);}}
  const principal=route(t,'../api/meals.js');assert.equal((await principal.request('GET')).status,200);
  const ctx={user:{userId:'u1',status:'active'},household:{householdId:'h1',status:'active'},membership:{userId:'u1',householdId:'h1',role:'secondary',status:'active'}};assert.equal(authorize({...ctx,resource:'member_meals',operation:'edit'}).ok,true);
+});
+
+test('app switching does not force checks or reload an already verified frame',async()=>{
+ const f=browser();f.authenticate();await f.settle();const count=f.calls.length;
+ for(let i=0;i<5;i++)f.documentEvents.get('visibilitychange')();await f.settle();assert.equal(f.calls.length,count);assert.equal(f.elements.core.src,'./app-v5.html');
+});
+test('temporary recheck errors retain the frame and retry without hiding authoritative denials',async()=>{
+ let fail=null;const f=browser({upstream:async()=>{if(fail==='network')throw Error('offline');return fail?new Response(JSON.stringify({ok:false}),{status:fail}):new Response(JSON.stringify({ok:true,workspace:{role:'principal',principalWorkspace:true}}));}});f.authenticate();await f.settle();
+ for(const failure of [503,'network']){fail=failure;f.elements.mcWorkspaceRetry.click();await f.settle();assert.equal(f.elements.core.src,'./app-v5.html');assert.equal(f.elements.mcWorkspaceGate.style.display,'none');assert.match(f.elements.mcWorkspaceNotice.textContent,/screen is kept/);}
+ fail=403;f.elements.mcWorkspaceRetry.click();await f.settle();assert.equal(f.elements.core.src,'about:blank');assert.equal(f.elements.mcWorkspaceGate.style.display,'flex');
 });

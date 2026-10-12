@@ -10,7 +10,8 @@
     const preview=element("mcJuliePreview");if(preview)preview.hidden=true;
     const modal=element("mcOnboard");if(modal){modal.classList.remove("show");modal.setAttribute("aria-hidden","true");}
   }
-  function signedOut(){generation++;sessionKey=null;pending=false;cacheReady=false;lastCheck=0;reauthenticate=false;hold("Sign in to continue.");}
+  function connectionNotice(message){const notice=element("mcWorkspaceNotice");if(notice){notice.textContent=message;notice.hidden=!message;}}
+  function signedOut(){connectionNotice("");generation++;sessionKey=null;pending=false;cacheReady=false;lastCheck=0;reauthenticate=false;hold("Sign in to continue.");}
   async function verify(force=false){
     const currentKey=key();if(!currentKey){signedOut();return;}
     if(currentKey!==sessionKey){generation++;sessionKey=currentKey;pending=false;cacheReady=false;lastCheck=0;hold("Checking household access…");}
@@ -23,10 +24,12 @@
       if(current!==generation||key()!==currentKey)return;
       cacheReady=true;
       const response=await fetch("/api/v1/workspace",{method:"POST",credentials:"same-origin",cache:"no-store",
-        headers:{"Content-Type":"application/json"},body:"{}"});
-      const body=await response.json();
+        signal:AbortSignal.timeout(15000),headers:{"Content-Type":"application/json"},body:"{}"});
+      const body=await response.json().catch(()=>({ok:false}));
       if(current!==generation||key()!==currentKey)return;
       lastCheck=Date.now();
+      if(response.status>=500&&element("core").getAttribute("src")!=="about:blank"){connectionNotice("Connection interrupted. Your screen is kept here; updates will retry in the background.");return;}
+      connectionNotice("");
       if(!response.ok||body.ok!==true){
         reauthenticate=response.status===401;
         if(response.status===401||response.status===403)void window.mcClearPrivateCache?.();
@@ -52,7 +55,7 @@
         hold("Your household membership is verified. Member setup is still being prepared; this account cannot open the principal workspace.",{retry:true});
       }else hold("Workspace response could not be verified. Try again.",{retry:true});
     }catch{
-      if(current===generation&&key()===currentKey)hold("Household access is temporarily unavailable. Try again.",{retry:true});
+      if(current===generation&&key()===currentKey){lastCheck=Date.now();if(element("core").getAttribute("src")!=="about:blank")connectionNotice("Connection interrupted. Your screen is kept here; updates will retry in the background.");else hold("Household access is temporarily unavailable. Try again.",{retry:true});}
     }finally{
       if(current===generation){pending=false;element("mcWorkspaceRetry").disabled=false;}
     }
@@ -62,6 +65,6 @@
   window.addEventListener("DOMContentLoaded",()=>{
     element("mcWorkspaceRetry").addEventListener("click",()=>reauthenticate?window.mcReauthenticate?.():verify(true));
     setInterval(()=>{if(!document.hidden)verify();},60000);
-    document.addEventListener("visibilitychange",()=>{if(!document.hidden)verify(true);});
+    document.addEventListener("visibilitychange",()=>{if(!document.hidden)verify();});
   });
 })();
