@@ -5,7 +5,7 @@
  const clear=()=>{generation++;key=null;stamp='';window.mcBudgetSnapshot=null;};
  window.mcReadBudget=async()=>{
   const core=document.getElementById('core');if(!core?.getAttribute('src')?.includes('app-v5.html')){clear();return false;}const s=session();if(!s){clear();return false;}if(key!==s){clear();key=s;}const g=++generation;
-  try{const r=await fetch('/api/v1/budget',{method:'POST',cache:'no-store',signal:AbortSignal.timeout(30000),headers:{'Content-Type':'application/json'},body:JSON.stringify({operation:'read'})});
+  try{const r=await fetch('/api/v1/member',{method:'POST',cache:'no-store',signal:AbortSignal.timeout(30000),headers:{'Content-Type':'application/json'},body:JSON.stringify({resource:'budget_setup',operation:'read'})});
    if(g!==generation||s!==session()||!core.getAttribute('src')?.includes('app-v5.html'))return false;
    if(r.status===401||r.status===403){clear();void window.mcClearPrivateCache?.();const frame=document.getElementById('core');if(frame)frame.src='about:blank';const gate=document.getElementById('mcWorkspaceGate');if(gate){gate.style.display='flex';document.getElementById('mcWorkspaceStatus').textContent='Budget access needs a fresh check. Reload or sign in again.';document.getElementById('mcWorkspaceRetry').hidden=false;}return false;}if(!r.ok)return false;
    const body=await r.json(),record=body.record;if(g!==generation||s!==session()||!record||!model.validate(record.draft)||(record.active&&!model.validate(record.active)))return false;
