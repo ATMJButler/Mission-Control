@@ -27,6 +27,11 @@ function scoreMeal(m,day,recent,inventory,used,constraint){
  for(const ing of m.ingredients){const words=ing.toLowerCase().split(/\s+/).filter(w=>w.length>4);if(words.some(w=>inventory.includes(w)))s+=2}
  return s
 }
+export function carryRecurringSnacks(meals,weekStart){
+ const candidates=[meals.draft,meals.approved].filter(plan=>plan&&Array.isArray(plan.snacksList));
+ candidates.sort((a,b)=>String(b.weekStart||'').localeCompare(String(a.weekStart||'')));
+ const source=candidates[0];return(source?.snacksList||[]).map(item=>({item:item.item,qty:item.qty,done:source.weekStart===weekStart&&item.done===true}));
+}
 export default async function handler(req,res){
  if(req.method!=="POST"){res.setHeader("Allow","POST");return res.status(405).json({ok:false,error:"Method not allowed"})}
  try{
@@ -38,7 +43,7 @@ export default async function handler(req,res){
     const ranked=LIBRARY.slice().sort((a,z)=>scoreMeal(z,i,recent,inventory,used,constraint)-scoreMeal(a,i,recent,inventory,used,constraint));const pick=ranked[0];used.add(pick.name);days.push({date,meal:pick.name,prep:(constraint&&constraint.primaryUserAway?"John away • MINIMAL PREP / heat-and-eat • ":"")+(i===0?"Easy Monday":pick.time+" dinner"),status:"draft",calendarConstraint:constraint||null,prepClass:prepClass(pick),recipe:{servings:pick.servings,time:pick.time,ingredients:pick.ingredients,instructions:pick.instructions,notes:pick.notes}})}
   const have=(meals.inventory||[]).map(x=>String(x.item||"").toLowerCase()),items=[],seen=new Set();
   for(const d of days)for(const ing of d.recipe.ingredients){const key=ing.toLowerCase();if(seen.has(key))continue;const words=key.split(/\s+/).filter(w=>w.length>4);if(have.some(h=>words.some(w=>h.includes(w))))continue;seen.add(key);items.push({item:ing,qty:"",done:false,sourceMeal:d.meal})}
-  const draft={weekStart,days,groceryList:items,inventory:meals.inventory||[],settings:meals.rules||{},status:"draft",planner:{version:"butler-v1",generatedAt:new Date().toISOString(),basis:["Butler meal library","recent approved history","household rules","current inventory","calendar constraints"],constraints:b.constraints||[]}};
+  const draft={weekStart,days,groceryList:items,snacksList:carryRecurringSnacks(meals,weekStart),inventory:meals.inventory||[],settings:meals.rules||{},status:"draft",planner:{version:"butler-v1",generatedAt:new Date().toISOString(),basis:["Butler meal library","recent approved history","household rules","current inventory","calendar constraints"],constraints:b.constraints||[]}};
   return res.status(200).json({ok:true,draft})
  }catch(e){return res.status(500).json({ok:false,error:String(e&&e.message||e)})}
 }

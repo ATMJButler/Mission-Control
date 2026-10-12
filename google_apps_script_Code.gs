@@ -366,12 +366,12 @@ function memberMealsRead_(householdId){
     if(raw.householdId!==householdId)throw new Error('Foreign meals');
     const project=plan=>{
       if(!memberObject_(plan)||!Array.isArray(plan.days)||plan.days.length>7||plan.days.some(day=>!memberObject_(day)))return null;
-      const grocery=Array.isArray(plan.groceryList)?plan.groceryList:[];
+      const grocery=Array.isArray(plan.groceryList)?plan.groceryList:[];const snacks=Array.isArray(plan.snacksList)?plan.snacksList:[];if(snacks.length>200||snacks.some(item=>!memberObject_(item)))return null;
       if(grocery.length>200||grocery.some(item=>!memberObject_(item)))return null;
-      return{weekStart:memberText_(plan.weekStart),days:plan.days.map(day=>({date:memberText_(day.date),meal:memberText_(day.meal),prep:memberText_(day.prep)})),groceryList:grocery.map(item=>({item:memberText_(item.item),qty:memberText_(item.qty),done:item.done===true}))};
+      return{weekStart:memberText_(plan.weekStart),days:plan.days.map(day=>({date:memberText_(day.date),meal:memberText_(day.meal),prep:memberText_(day.prep)})),groceryList:grocery.map(item=>({item:memberText_(item.item),qty:memberText_(item.qty),done:item.done===true})),...(Array.isArray(plan.snacksList)?{snacksList:snacks.map(item=>({item:memberText_(item.item),qty:memberText_(item.qty),done:item.done===true}))}:{})};
     };
     const approved=project(raw.approved),candidate=project(raw.draft);
-    const draft=candidate&&candidate.days.length&&isProjectCalendarDate_(candidate.weekStart)&&(!approved||!approved.weekStart||candidate.weekStart>approved.weekStart)?candidate:null;
+    const draft=candidate&&candidate.days.length&&isProjectCalendarDate_(candidate.weekStart)&&(!approved||!approved.weekStart||candidate.weekStart>=approved.weekStart)?candidate:null;
     if(raw.approved&&!approved)throw new Error('Invalid approved plan');
     if(!approved&&!draft)return{state:'missing',value:null};
     return{state:'available',value:{householdId:householdId,version:Number.isSafeInteger(raw.version)&&raw.version>0?raw.version:null,...(approved?{approved:approved}:{}),...(draft?{draft:draft}:{})}};
@@ -406,7 +406,7 @@ function validMemberMealEdit_(operation,rows){
   const object=value=>value&&typeof value==='object'&&!Array.isArray(value);
   const text=(value,max,blank)=>typeof value==='string'&&value.length<=max&&(blank||value.trim().length>0);
   if(!Array.isArray(rows))return false;
-  operation=({edit_draft_meals:'edit_meals',edit_draft_groceries:'edit_groceries'})[operation]||operation;
+  operation=({edit_draft_meals:'edit_meals',edit_draft_groceries:'edit_groceries',edit_snacks:'edit_groceries',edit_draft_snacks:'edit_groceries'})[operation]||operation;
   if(operation==='edit_meals')return rows.length>0&&rows.length<=7&&new Set(rows.map(row=>row&&row.date)).size===rows.length&&rows.every(row=>object(row)&&Object.keys(row).length===3&&Object.keys(row).every(key=>['date','meal','prep'].includes(key))&&text(row.date,10,false)&&isProjectCalendarDate_(row.date)&&text(row.meal,200,false)&&text(row.prep,500,true));
   if(operation==='edit_groceries')return rows.length<=200&&rows.every(row=>object(row)&&Object.keys(row).length===3&&Object.keys(row).every(key=>['item','qty','done'].includes(key))&&text(row.item,200,false)&&text(row.qty,100,true)&&typeof row.done==='boolean');
   return false;
@@ -426,9 +426,9 @@ function editMemberMeals_(body){
     const rec=matches[0];if(!rec.row[0]||rows.filter(row=>String(row[0])===String(rec.row[0])).length!==1)throw new Error('MEMBER_MEALS_UNAVAILABLE');
     let current;try{current=memberCellJson_(rec.row[6])}catch(_e){throw new Error('MEMBER_MEALS_UNAVAILABLE')}
     if(current.householdId!==body.householdId)throw new Error('MEMBER_MEALS_FORBIDDEN');
-    const draftEdit=['edit_draft_meals','edit_draft_groceries'].includes(body.operation),target=draftEdit?'draft':'approved',plan=current[target];
+    const draftEdit=['edit_draft_meals','edit_draft_groceries','edit_draft_snacks'].includes(body.operation),target=draftEdit?'draft':'approved',plan=current[target];
     if(!Number.isSafeInteger(current.version)||current.version<1||!memberObject_(plan)||!Array.isArray(plan.days))throw new Error('MEMBER_MEALS_UNAVAILABLE');
-    if(draftEdit&&(!isProjectCalendarDate_(plan.weekStart)||(current.approved&&plan.weekStart<=current.approved.weekStart)))throw new Error('MEMBER_MEALS_INVALID');
+    if(draftEdit&&(!isProjectCalendarDate_(plan.weekStart)||(current.approved&&plan.weekStart<current.approved.weekStart)))throw new Error('MEMBER_MEALS_INVALID');
     if(current.version!==body.expectedVersion)throw new Error('MEMBER_MEALS_CONFLICT');
     const next=JSON.parse(JSON.stringify(current));
     if(['edit_meals','edit_draft_meals'].includes(body.operation)){
@@ -436,7 +436,7 @@ function editMemberMeals_(body){
       const dates=plan.days.map(day=>day&&day.date);
       if(new Set(dates).size!==dates.length||body.rows.length!==dates.length||body.rows.some(row=>!dates.includes(row.date)))throw new Error('MEMBER_MEALS_INVALID');
       next[target].days=body.rows.map(row=>{const prior=plan.days.find(day=>day.date===row.date),day=JSON.parse(JSON.stringify(prior));day.date=row.date;day.meal=row.meal;day.prep=row.prep;if(prior.meal!==row.meal)delete day.recipe;return day});
-    }else next[target].groceryList=body.rows.map(row=>{const matches=Array.isArray(plan.groceryList)?plan.groceryList.filter(item=>item&&item.item===row.item):[];const item=matches.length===1?JSON.parse(JSON.stringify(matches[0])):{};item.item=row.item;item.qty=row.qty;item.done=row.done;return item});
+    }else {const field=body.operation.endsWith('snacks')?'snacksList':'groceryList';next[target][field]=body.rows.map(row=>{const matches=Array.isArray(plan[field])?plan[field].filter(item=>item&&item.item===row.item):[];const item=matches.length===1?JSON.parse(JSON.stringify(matches[0])):{};item.item=row.item;item.qty=row.qty;item.done=row.done;return item});}
     next.version=current.version+1;next.updatedAt=new Date().toISOString();next.updatedBy=body.actor;
     next[target].updatedAt=next.updatedAt;next[target].updatedBy=body.actor;
     const cells=rec.row.slice();cells[3]=next.updatedAt;cells[4]=body.actor;cells[6]=JSON.stringify(next);

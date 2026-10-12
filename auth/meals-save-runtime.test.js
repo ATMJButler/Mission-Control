@@ -155,3 +155,9 @@ test('legacy API rejects missing or malformed versions before contacting the bac
 test('principal browser cannot save without a loaded version',async t=>{const flow=setup(t);flow.browser.mealsDurable=null;assert.equal(await flow.browser.saveMeals(),false);assert.equal(flow.browserRequests.length,0);assert.equal(flow.upstreamRequests.length,0);assert.match(flow.status.textContent,/verified version is required/);});
 
 test('confirmed empty Meals creates version one and a stale zero cannot overwrite it',async t=>{const flow=setup(t);flow.backend.sheet('Meals',[flow.backend.rows('Meals')[0]]);flow.browser.mealsDurable={version:0};assert.equal(await flow.browser.saveMeals(),true);assert.equal(flow.browser.mealsDurable.version,1);const before=flow.backend.rows('Meals',true);const response=await flow.post({operation:'save_draft',expectedVersion:0,meals:{draft:{days:[]}}});assert.match((await response.json()).error,/^CONFLICT:/);assert.deepEqual(flow.backend.rows('Meals',true),before);});
+
+test('principal draft save and approval retain snacks separately from dinner groceries',async t=>{
+ const flow=setup(t);flow.browser.state.meals.snacksList=[{item:'Crackers',qty:'2 boxes',done:true}];
+ assert.equal(await flow.browser.saveMeals(),true);const saved=JSON.parse(flow.backend.rows('Meals')[1][6]);assert.deepEqual(saved.draft.snacksList,[{item:'Crackers',qty:'2 boxes',done:true}]);assert.deepEqual(saved.draft.groceryList,[]);assert.deepEqual(saved.approved,flow.approved);
+ await flow.browser.approveMeals();const approved=JSON.parse(flow.backend.rows('Meals')[1][6]);assert.deepEqual(approved.approved.snacksList,saved.draft.snacksList);
+});

@@ -32,9 +32,9 @@ export function projectMemberBudget(snapshot) {
 
 export function projectMemberMeals(meals, householdId) {
   if (!householdId || !object(meals) || meals.householdId !== householdId) return null;
-  const project=plan=>!object(plan)||!Array.isArray(plan.days)||plan.days.length>7?null:{weekStart:text(plan.weekStart),days:plan.days.filter(object).map(day=>({date:text(day.date),meal:text(day.meal),prep:text(day.prep)})),groceryList:Array.isArray(plan.groceryList)?plan.groceryList.slice(0,200).filter(object).map(item=>({item:text(item.item),qty:text(item.qty),done:item.done===true})):[]};
+  const project=plan=>!object(plan)||!Array.isArray(plan.days)||plan.days.length>7?null:{weekStart:text(plan.weekStart),days:plan.days.filter(object).map(day=>({date:text(day.date),meal:text(day.meal),prep:text(day.prep)})),groceryList:Array.isArray(plan.groceryList)?plan.groceryList.slice(0,200).filter(object).map(item=>({item:text(item.item),qty:text(item.qty),done:item.done===true})):[],...(Array.isArray(plan.snacksList)?{snacksList:plan.snacksList.slice(0,200).filter(object).map(item=>({item:text(item.item),qty:text(item.qty),done:item.done===true}))}:{})};
   const approved=project(meals.approved),candidate=project(meals.draft);
-  const draft=candidate&&candidate.days.length&&calendarDate(candidate.weekStart)&&(!approved?.weekStart||candidate.weekStart>approved.weekStart)?candidate:null;
+  const draft=candidate&&candidate.days.length&&calendarDate(candidate.weekStart)&&(!approved?.weekStart||candidate.weekStart>=approved.weekStart)?candidate:null;
   if(!approved&&!draft)return null;
   return {...(Number.isSafeInteger(meals.version)&&meals.version>0?{version:meals.version}:{}),...(approved||{weekStart:'',days:[],groceryList:[]}),...(draft?{draft}:{})};
 }

@@ -9,7 +9,7 @@ function browser(transport){
  const buttons=['schedule','budget','meals','family'].map(tab=>({dataset:{tab},setAttribute(k,v){this[k]=v;}}));
  const events=new Map(),documentEvents=new Map(),intervals=[],calls=[],renders=[],editorResets=[];
  const clerk={isSignedIn:true,user:{id:'u1'},session:{id:'s1'},listeners:[],addListener(fn){this.listeners.push(fn);}};
- const ctx=vm.createContext({window:{Clerk:clerk,addEventListener:(name,fn)=>events.set(name,fn)},document:{hidden:false,getElementById:id=>elements[id],addEventListener:(name,fn)=>documentEvents.set(name,fn)},createPersonalSchedule(){return{reset(){},mount(){}};},createMemberMealsEditor(){return{reset(){editorResets.push(true);},actions(){},readback(){}};},renderMemberDashboard(root,data,tab){root.children=[data];renders.push({data,tab});},setInterval:fn=>intervals.push(fn),fetch:async(_url,options)=>{calls.push(JSON.parse(options.body));return transport();}});
+ const ctx=vm.createContext({AbortSignal,window:{Clerk:clerk,addEventListener:(name,fn)=>events.set(name,fn)},document:{hidden:false,getElementById:id=>elements[id],addEventListener:(name,fn)=>documentEvents.set(name,fn)},createPersonalSchedule(){return{reset(){},mount(){}};},createMemberMealsEditor(){return{reset(){editorResets.push(true);},actions(){},readback(){}};},renderMemberDashboard(root,data,tab){root.children=[data];renders.push({data,tab});},setInterval:fn=>intervals.push(fn),fetch:async(_url,options)=>{calls.push(JSON.parse(options.body));return transport();}});
  vm.runInContext(fs.readFileSync(new URL('../member-dashboard-ui.js',import.meta.url),'utf8').replace(/^import .*;\n/gm,''),ctx);
  const settle=async()=>{for(let i=0;i<8;i++)await new Promise(resolve=>setImmediate(resolve));};return{editorResets,elements,buttons,events,documentEvents,intervals,calls,renders,clerk,settle,authenticate:()=>events.get('mc-authenticated')()};
 }
@@ -40,7 +40,7 @@ test('transport uncertainty preserves local edits for explicit reconciliation',a
  let unavailable=false;const f=browser(()=>{if(unavailable)throw new Error('Network unavailable');return response(dashboard());});
  f.authenticate();await f.settle();const before=f.editorResets.length;
  unavailable=true;f.elements.refresh.onclick();await f.settle();
- assert.equal(f.editorResets.length,before);assert.equal(f.elements.panel.children.length,0);
+ assert.equal(f.editorResets.length,before);assert.equal(f.elements.panel.children.length,1);assert.equal(f.elements.tabs.hidden,false);assert.match(f.elements.status.textContent,/screen and edits are kept/);
 });
 test('returning to the tab immediately does not restart the schedule load',async()=>{
  const f=browser(()=>response(dashboard()));f.authenticate();await f.settle();
@@ -52,7 +52,7 @@ test('schedule timeout replaces loading text and reset aborts obsolete reads',as
  const root={children:[],replaceChildren(){this.children=[];},append(item){this.children.push(item);}};
  root.ownerDocument={createElement(){return{children:[],append(item){this.children.push(item);}};}};
  const timers=[],signals=[],clerk={isSignedIn:true,user:{id:'u'},session:{id:'s'}};
- const ctx=vm.createContext({window:{Clerk:clerk},AbortController,setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout(){},fetch:(_url,options)=>{signals.push(options.signal);return new Promise((_resolve,reject)=>options.signal.addEventListener('abort',()=>reject(Error('Aborted'))));}});
+ const ctx=vm.createContext({AbortSignal,window:{Clerk:clerk},AbortController,setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout(){},fetch:(_url,options)=>{signals.push(options.signal);return new Promise((_resolve,reject)=>options.signal.addEventListener('abort',()=>reject(Error('Aborted'))));}});
  vm.runInContext(fs.readFileSync(new URL('../personal-schedule-ui.js',import.meta.url),'utf8').replace('export function','function')+'\nthis.schedule=createPersonalSchedule();',ctx);
  const loading=ctx.schedule.mount(root);assert.match(root.children[0].textContent,/Reading/);
  timers[0]();await loading;assert.match(root.children[0].textContent,/could not be verified/);
@@ -74,4 +74,7 @@ test('switching workspace sections restores the same schedule view without anoth
  const data={...dashboard('schedule'),capabilities:{personalSchedule:true}};const f=browser(()=>response(data));f.authenticate();await f.settle();const view=f.elements.panel.children[0];
  f.buttons[1].onclick();assert.equal(f.renders.length,2);f.buttons[0].onclick();assert.equal(f.renders.length,2);assert.equal(f.elements.panel.children[0],view);assert.equal(f.calls.length,1);
  f.elements.refresh.onclick();await f.settle();assert.equal(f.calls.length,2);assert.equal(f.renders.length,3);
+});
+test('malformed authoritative denial clears a preserved member screen',async()=>{
+ let denied=false;const f=browser(()=>denied?new Response('not JSON',{status:403}):response(dashboard()));f.authenticate();await f.settle();denied=true;f.intervals[0]();await f.settle();assert.equal(f.elements.panel.children.length,0);assert.equal(f.elements.tabs.hidden,true);
 });
