@@ -30,7 +30,7 @@ async function bootMissionControlAuth(){
     if(cfg.signInOrigin==='https://app.abovethemarkos.com'&&window.location?.hostname==='mission-control-lime-tau.vercel.app'){
       const link=document.createElement('a');link.textContent='Continue to Mission Control';
       const path=window.location.pathname;
-      link.href=cfg.signInOrigin+(['/', '/index.html', '/diagnostics.html', '/member.html', '/member-setup.html', '/join.html', '/invite.html'].includes(path)?path:'/');
+      link.href=cfg.signInOrigin+(['/', '/index.html', '/diagnostics.html', '/member.html', '/member-setup.html', '/join.html', '/invite.html', '/budget.html'].includes(path)?path:'/');
       link.className='mc-auth-retry';mount.replaceChildren(link);
       state.textContent='Sign in on the main Mission Control website.';
       return;

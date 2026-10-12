@@ -251,6 +251,7 @@ function renderFinance(showToast=false){
 
 frame.addEventListener('load',()=>{let tries=0;const ready=setInterval(async()=>{tries++;if(installBridge()){clearInterval(ready);win().switchPage('agenda');renderAgenda();renderFinance();if(win().__mcPrivatePull){let ok=await win().__mcPrivatePull();for(let i=0;!ok&&i<3;i++){await new Promise(r=>setTimeout(r,700*(i+1)));ok=await win().__mcPrivatePull()}renderAgenda();renderFinance();if(ok)window.dispatchEvent(new CustomEvent('mc-private-sync-ready'));}setTimeout(()=>{renderAgenda();renderFinance();window.dispatchEvent(new CustomEvent('mc-private-sync-ready'))},1200);setInterval(()=>{renderAgendaDinner();if(!document.hidden&&Date.now()-lastDinnerRead>=60000&&doc().getElementById('page-agenda')?.classList.contains('active')){lastDinnerRead=Date.now();win().refreshSharedDinner?.().then(()=>renderAgendaDinner());}const f=win().__mcFinanceSnapshot?win().__mcFinanceSnapshot():null;if(f&&f.asOf!==lastFinanceStamp)renderFinance();const a=win().__mcAgendaSnapshot?win().__mcAgendaSnapshot():null;const stamp=a&&(a.statusUpdatedAt||a.updatedAt||a.asOf||a.date);if(stamp&&stamp!==lastAgendaStamp)renderAgenda()},5000)}else if(tries>40)clearInterval(ready)},100)});
 </script>
+<script src="./budget-model.js"></script><script src="./budget-bridge.js"></script>
 <script src="./finance-review.js"></script>
 <script src="./budget-drilldown.js"></script>
 

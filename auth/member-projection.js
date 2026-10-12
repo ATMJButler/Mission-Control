@@ -8,7 +8,7 @@ const amount = value => typeof value === 'number' && Number.isFinite(value) && v
 export function projectMemberBudget(snapshot) {
   if (!object(snapshot) || !object(snapshot.budget) || !Array.isArray(snapshot.budget.categories)) return null;
   const rows = snapshot.budget.categories;
-  if (rows.length > 100) return null;
+  if (rows.length > (snapshot.budgetMode==='manual'?101:100)) return null;
   const reconciliation = snapshot.budgetReconciliation?.categories;
   const categories = [];
   const names = new Set();
@@ -21,7 +21,7 @@ export function projectMemberBudget(snapshot) {
     const matches = Array.isArray(reconciliation) ? reconciliation.filter(item => object(item) && item.name === name) : [];
     // Missing reconciliation is unknown spending, never invented zero spending.
     if (matches.length > 1) return null;
-    const spent = matches.length === 1 ? amount(matches[0].spent) : null;
+    const spent = matches.length === 1 ? (snapshot.budgetMode==='manual'&&typeof matches[0].spent==='number'&&Number.isFinite(matches[0].spent)?matches[0].spent:amount(matches[0].spent)) : null;
     categories.push({name, planned, spent, remaining: spent === null ? null : planned - spent});
   }
   const planned = categories.reduce((sum, row) => sum + row.planned, 0);

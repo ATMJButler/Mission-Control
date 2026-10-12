@@ -5,6 +5,7 @@ export const ROLES = Object.freeze({
 });
 
 const POLICIES = Object.freeze({
+  budget_setup: Object.freeze(Object.fromEntries(["read","save","activate","transaction","delete_transaction"].map(op=>[op,["principal"]]))),
   member_meals: Object.freeze({edit: ["principal","secondary"]}),
   member_workspace: Object.freeze({read: ["principal","secondary"]}),
   member_setup: Object.freeze({read: ["principal","secondary"], save: ["principal","secondary"]}),
