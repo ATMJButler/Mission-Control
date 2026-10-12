@@ -25,6 +25,7 @@ function doPost(e){try{
   authorize_(body.token);
   if(body.resource==="member_meals_edit")return json_(editMemberMeals_(body));
   if(body.resource==="member_dashboard")return json_(readMemberDashboard_(body));
+  if(body.resource==="budget_setup")return json_(budgetSetup_(body));
   if(body.resource==="member_setup")return json_(memberSetup_(body));
   if(body.resource==="personal_connections")return json_(personalConnections_(body));
   if(body.resource==="system_diagnostics"){
@@ -327,6 +328,7 @@ function memberText_(value){return typeof value==='string'?value.slice(0,500):''
 function memberObject_(value){return value&&typeof value==='object'&&!Array.isArray(value)}
 function memberCellJson_(cell){const value=typeof cell==='string'?JSON.parse(cell):cell;if(!memberObject_(value))throw new Error('Invalid snapshot');return value}
 function memberBudgetRead_(householdId){
+  const manual=budgetMemberSummary_(householdId);if(manual)return manual;
   if(householdId!=='butler-household')return{state:'missing',value:null};
   const table=diagnosticsTable_('Projects',HEADERS);
   if(!table.present)return{state:'missing',value:null};
@@ -482,4 +484,97 @@ function personalConnections_(body){
     SpreadsheetApp.flush();return{ok:true,record:next};
   }catch(error){if(writing)throw new Error('PERSONAL_CONNECTIONS_OUTCOME_UNKNOWN');throw error}
   finally{try{if(writing)SpreadsheetApp.flush()}catch(_e){console.error('Personal connection cleanup flush failed')}finally{lock.releaseLock()}}
+}
+
+// BEGIN BUDGET MODEL
+var MCBudget = (() => {
+  const frequencies={weekly:52,biweekly:26,twice_monthly:24,monthly:12,quarterly:4,yearly:1};
+  const object=x=>x&&typeof x==='object'&&!Array.isArray(x);
+  const keys=(x,list)=>object(x)&&Object.keys(x).every(k=>list.includes(k))&&list.every(k=>Object.hasOwn(x,k));
+  const text=x=>typeof x==='string'&&x.trim().length>0&&x.length<=100;
+  const cents=x=>Number.isSafeInteger(x)&&x>=0&&x<=1000000000;
+  const date=x=>typeof x==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(x)&&new Date(x+'T12:00:00Z').toISOString().slice(0,10)===x;
+  function defaults(){return{method:'manual',step:0,income:[],bills:[],categories:[],savings:[]};}
+  function validate(plan){
+    if(!keys(plan,['method','step','income','bills','categories','savings'])||plan.method!=='manual'||!Number.isInteger(plan.step)||plan.step<0||plan.step>5)return false;
+    const names=new Set();
+    for(const group of ['income','bills','categories','savings']){
+      if(!Array.isArray(plan[group])||plan[group].length>50)return false;
+      for(const row of plan[group]){
+        const fields=group==='bills'?['name','amountCents','frequency','dueDay']:group==='income'?['name','amountCents','frequency']:['name','amountCents'];
+        if(!keys(row,fields)||!text(row.name)||row.name!==row.name.trim()||!cents(row.amountCents))return false;
+        if(['income','bills'].includes(group)&&!Object.hasOwn(frequencies,row.frequency))return false;
+        if(group==='bills'&&(!Number.isInteger(row.dueDay)||row.dueDay<1||row.dueDay>31))return false;
+        const name=(group==='income'?'income:':'allocation:')+row.name.toLowerCase();if(names.has(name)||(group!=='income'&&row.name.toLowerCase()==='unassigned'))return false;names.add(name);
+      }
+    }return plan.bills.length+plan.categories.length+plan.savings.length<=100;
+  }
+  function monthly(row){return Math.round(row.amountCents*(frequencies[row.frequency]||12)/12);}
+  function allocations(plan){return [...plan.bills.map(r=>({name:r.name,plannedCents:monthly(r),kind:'bill'})),...plan.categories.map(r=>({name:r.name,plannedCents:r.amountCents,kind:'spending'})),...plan.savings.map(r=>({name:r.name,plannedCents:r.amountCents,kind:'saving'}))];}
+  function validateTransaction(t){
+    try{return keys(t,['id','date','description','amountCents','flow','category','sourceId'])&&typeof t.id==='string'&&/^[A-Za-z0-9_-]{1,100}$/.test(t.id)&&date(t.date)&&text(t.description)&&cents(t.amountCents)&&t.amountCents>0&&['spend','refund','income','transfer'].includes(t.flow)&&typeof t.category==='string'&&t.category.length<=100&&typeof t.sourceId==='string'&&t.sourceId.length<=200;}catch{return false;}
+  }
+  function summary(plan,transactions,month){
+    const categories=allocations(plan).map(r=>({...r,spentCents:0}));let incomeActualCents=0,unassignedCents=0;
+    for(const t of transactions.filter(t=>t.date.slice(0,7)===month)){
+      if(t.flow==='income'){incomeActualCents+=t.amountCents;continue;}if(t.flow==='transfer')continue;
+      const amount=t.flow==='refund'?-t.amountCents:t.amountCents,category=categories.find(r=>r.name===t.category);
+      if(category)category.spentCents+=amount;else unassignedCents+=amount;
+    }
+    const incomeCents=plan.income.reduce((a,r)=>a+monthly(r),0),allocatedCents=categories.reduce((a,r)=>a+r.plannedCents,0),spentCents=categories.reduce((a,r)=>a+r.spentCents,unassignedCents);
+    if(unassignedCents)categories.push({name:'Unassigned',plannedCents:0,spentCents:unassignedCents,kind:'unassigned'});
+    return{incomeCents,allocatedCents,unallocatedCents:incomeCents-allocatedCents,spentCents,incomeActualCents,unassignedCents,categories};
+  }
+  function moneyInput(value){if(!/^\d+(\.\d{1,2})?$/.test(String(value)))throw Error('Enter a positive amount with up to two decimal places.');const [d,p='']=String(value).split('.'),v=Number(d)*100+Number(p.padEnd(2,'0'));if(!cents(v))throw Error('That amount is too large.');return v;}
+  return{defaults,validate,monthly,allocations,validateTransaction,summary,moneyInput};
+})();
+if(typeof globalThis!=='undefined')globalThis.MCBudget=MCBudget;
+// END BUDGET MODEL
+
+const BUDGET_SETUP_HEADERS=['householdId','version','json1','json2','json3','json4','json5','json6','json7','json8','updatedAt','updatedBy'];
+function budgetAuthority_(body){memberSetupAuthority_(body);const m=diagnosticsTable_('Household Memberships',['membershipId','householdId','userId','role','status','createdAt','updatedAt','notes']).rows.filter(r=>r[1]===body.householdId&&r[2]===body.actor);if(m.length!==1||m[0][3]!=='principal')throw new Error('BUDGET_FORBIDDEN')}
+function budgetRecord_(householdId){
+  const sheet=SpreadsheetApp.getActive().getSheetByName('Budget Setup');if(!sheet)return{sheet:null,row:0,record:{version:0,draft:MCBudget.defaults(),active:null,transactions:[],lastRequestId:'',lastFingerprint:''}};
+  if(sheet.getRange(1,1,1,BUDGET_SETUP_HEADERS.length).getValues()[0].join('|')!==BUDGET_SETUP_HEADERS.join('|'))throw new Error('BUDGET_SCHEMA_INVALID');
+  const rows=sheet.getLastRow()>1?sheet.getRange(2,1,sheet.getLastRow()-1,BUDGET_SETUP_HEADERS.length).getValues():[],matches=[];
+  rows.forEach((r,i)=>{if(r[0]===householdId)matches.push({row:i+2,values:r})});if(matches.length>1)throw new Error('BUDGET_SCHEMA_INVALID');
+  if(!matches.length)return{sheet:sheet,row:0,record:{version:0,draft:MCBudget.defaults(),active:null,transactions:[],lastRequestId:'',lastFingerprint:''}};
+  let record;try{record=JSON.parse(matches[0].values.slice(2,10).join(''));}catch{throw new Error('BUDGET_SCHEMA_INVALID')}
+  if(!Number.isSafeInteger(record.version)||record.version<1||record.version!==Number(matches[0].values[1])||!MCBudget.validate(record.draft)||(record.active!==null&&!MCBudget.validate(record.active))||!Array.isArray(record.transactions)||record.transactions.length>500||record.transactions.some(t=>!MCBudget.validateTransaction(t))||new Set(record.transactions.map(t=>t.id)).size!==record.transactions.length||typeof record.lastRequestId!=='string'||typeof record.lastFingerprint!=='string')throw new Error('BUDGET_SCHEMA_INVALID');
+  return{sheet:sheet,row:matches[0].row,record:record};
+}
+function budgetSetup_(body){
+  const reading=body.operation==='read',allowed=['token','resource','operation','householdId','actor'];
+  if(!reading)allowed.push('expectedVersion','requestId');if(body.operation==='save')allowed.push('plan');if(body.operation==='transaction')allowed.push('transaction');if(body.operation==='delete_transaction')allowed.push('transactionId');
+  rejectUnknownFields_(body,allowed);
+  if(!['read','save','activate','transaction','delete_transaction'].includes(body.operation)||(!reading&&(!Number.isSafeInteger(body.expectedVersion)||body.expectedVersion<0||body.expectedVersion>=Number.MAX_SAFE_INTEGER||typeof body.requestId!=='string'||!/^[-\w]{1,100}$/.test(body.requestId)))||(body.operation==='save'&&!MCBudget.validate(body.plan))||(body.operation==='transaction'&&(!MCBudget.validateTransaction(body.transaction)||body.transaction.sourceId!==''))||(body.operation==='delete_transaction'&&(typeof body.transactionId!=='string'||!/^[-\w]{1,100}$/.test(body.transactionId))))throw new Error('BUDGET_INVALID');
+  const lock=LockService.getScriptLock();lock.waitLock(30000);let writing=false;
+  try{
+    try{budgetAuthority_(body)}catch{throw new Error('BUDGET_FORBIDDEN')}
+    const found=budgetRecord_(body.householdId),record=found.record;if(reading)return{ok:true,record:record};
+    const fingerprint=JSON.stringify([body.operation,body.expectedVersion,body.plan||null,body.transaction||null,body.transactionId||'']);
+    if(record.lastRequestId===body.requestId){if(record.lastFingerprint!==fingerprint)throw new Error('BUDGET_CONFLICT');return{ok:true,record:record};}
+    if(record.version!==body.expectedVersion)throw new Error('BUDGET_CONFLICT');
+    if(body.operation==='save')record.draft=body.plan;
+    if(body.operation==='activate'){if(record.draft.step!==5||!record.draft.income.length||!MCBudget.allocations(record.draft).length)throw new Error('BUDGET_INVALID');record.active=JSON.parse(JSON.stringify(record.draft));}
+    if(['transaction','delete_transaction'].includes(body.operation)){
+      if(!record.active)throw new Error('BUDGET_INVALID');
+      const id=body.operation==='transaction'?body.transaction.id:body.transactionId,index=record.transactions.findIndex(t=>t.id===id);
+      if(body.operation==='delete_transaction'){if(index<0)throw new Error('BUDGET_CONFLICT');record.transactions.splice(index,1);}
+      else if(index>=0)record.transactions[index]=body.transaction;
+      else{if(record.transactions.length>=500)throw new Error('BUDGET_CONFLICT');record.transactions.push(body.transaction);}
+    }
+    record.version++;record.lastRequestId=body.requestId;record.lastFingerprint=fingerprint;
+    const json=JSON.stringify(record);if(json.length>300000)throw new Error('BUDGET_INVALID');
+    writing=true;let sheet=found.sheet;if(!sheet){sheet=SpreadsheetApp.getActive().insertSheet('Budget Setup');sheet.getRange(1,1,1,BUDGET_SETUP_HEADERS.length).setValues([BUDGET_SETUP_HEADERS]);}
+    sheet.getRange(found.row||Math.max(2,sheet.getLastRow()+1),1,1,BUDGET_SETUP_HEADERS.length).setValues([[body.householdId,record.version,...Array.from({length:8},(_,i)=>json.slice(i*40000,(i+1)*40000)),new Date().toISOString(),body.actor]]);
+    SpreadsheetApp.flush();return{ok:true,record:record};
+  }catch(e){if(writing)throw new Error('BUDGET_OUTCOME_UNKNOWN');throw e}
+  finally{try{if(writing)SpreadsheetApp.flush()}catch(_e){console.error('Budget cleanup flush failed')}finally{lock.releaseLock()}}
+}
+function budgetMemberSummary_(householdId){
+  try{const r=budgetRecord_(householdId).record;if(!r.active)return null;
+    const date=Utilities.formatDate(new Date(),'America/Chicago','yyyy-MM'),summary=MCBudget.summary(r.active,r.transactions,date);
+    return{state:'available',value:{asOf:new Date().toISOString(),budgetMode:'manual',budget:{categories:summary.categories.map(c=>({name:c.name,planned:c.plannedCents/100}))},budgetReconciliation:{categories:summary.categories.map(c=>({name:c.name,spent:c.spentCents/100}))}}};
+  }catch{return{state:'unavailable',value:null}}
 }

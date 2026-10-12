@@ -57,7 +57,7 @@ const CSS=`
 const HTML=`
 <section class="page" id="page-budget">
   <div class="hero bud-hero">
-    <div class="hero-top"><div><h2>Monthly Budget</h2><div class="hero-sub">What we planned, what we have spent, and what is still safe to use.</div></div><div class="bud-actions"><button class="btn" id="budRefresh">Refresh</button></div></div>
+    <div class="hero-top"><div><h2>Monthly Budget</h2><div class="hero-sub">What we planned, what we have spent, and what is still safe to use.</div></div><div class="bud-actions"><button class="btn" id="budRefresh">Refresh</button><a class="btn" href="/budget.html" target="_top">Budget setup &amp; transactions</a></div></div>
     <div class="hint" id="budAsOf" style="margin-top:8px">Waiting for private Mission Control sync…</div>
     <div class="bud-summary" id="budSummary"></div>
   </div>
@@ -70,13 +70,13 @@ const HTML=`
   <div class="panel" id="budOutsidePanel" style="margin-top:12px"><h3>Outside the working plan</h3><div class="hint">Spending that posted this month but does not have a planned bucket in the working budget.</div><div class="bud-outside" id="budOutside"></div></div>
   <div class="panel" style="margin-top:12px"><div class="bud-privacy" id="budPrivacy"></div></div>
 </section>`;
-function snapshot(){try{return w().__mcFinanceSnapshot?w().__mcFinanceSnapshot():null}catch(e){return null}}
+function snapshot(){try{if(window.mcBudgetSnapshot)return window.mcBudgetSnapshot;return w().__mcFinanceSnapshot?w().__mcFinanceSnapshot():null}catch(e){return null}}
 function install(){const doc=d();if(!doc||!doc.querySelector('.nav')||!doc.getElementById('page-finances'))return false;
   if(!doc.getElementById('budgetInjectedStyle')){const st=doc.createElement('style');st.id='budgetInjectedStyle';st.textContent=CSS;doc.head.appendChild(st)}
   const pressure=doc.getElementById('finPressure');if(pressure&&pressure.closest('.panel'))pressure.closest('.panel').style.display='none';
   if(!doc.getElementById('page-budget')){const dataPage=doc.getElementById('page-data');dataPage.insertAdjacentHTML('beforebegin',HTML)}
   if(!doc.querySelector('.nav [data-page="budget"]')){const b=doc.createElement('button');b.dataset.page='budget';b.textContent='Budget';const dataBtn=doc.querySelector('.nav [data-page="data"]');dataBtn.parentNode.insertBefore(b,dataBtn);b.onclick=()=>{w().switchPage('budget');render()}}
-  const refresh=doc.getElementById('budRefresh');if(refresh&&!refresh.dataset.bound){refresh.dataset.bound='1';refresh.onclick=async()=>{refresh.textContent='Refreshing…';if(w().__mcFinancePull)await w().__mcFinancePull();setTimeout(()=>{if(typeof window.renderFinance==='function')window.renderFinance();render(true);refresh.textContent='Refresh'},350)}}
+  const refresh=doc.getElementById('budRefresh');if(refresh&&!refresh.dataset.bound){refresh.dataset.bound='1';refresh.onclick=async()=>{refresh.textContent='Refreshing…';if(window.mcReadBudget)await window.mcReadBudget();if(w().__mcFinancePull)await w().__mcFinancePull();setTimeout(()=>{if(typeof window.renderFinance==='function')window.renderFinance();render(true);refresh.textContent='Refresh'},350)}}
   return true
 }
 function status(spent,planned,pace){if(planned<=0)return spent>0?{label:'Unplanned',cls:'bad',card:'over'}:{label:'Inactive',cls:'muted',card:'inactive'};const ratio=spent/planned;if(ratio>1)return{label:`${Math.round(ratio*100)}% used`,cls:'bad',card:'over'};if(ratio>Math.min(1,pace+.12))return{label:`${Math.round(ratio*100)}% used`,cls:'warn',card:'watch'};return{label:`${Math.round(ratio*100)}% used`,cls:'good',card:''}}
@@ -94,7 +94,7 @@ function render(showToast=false){if(!install())return;const doc=d(),snap=snapsho
   const paceDiff=used-pace,overall=remaining<0?'bad':paceDiff>.12?'warn':'good',incomeTarget=Number(b.regularIncome??b.incomeTarget??planned),planGap=planned-incomeTarget;
   const planDescription=planGap>0?`${money(planGap)} above conservative income target`:planGap<0?`${money(Math.abs(planGap))} below conservative income target`:'Balanced to conservative monthly income';
   doc.getElementById('budSummary').innerHTML=`<div class="bud-stat"><div class="n">${money(planned)}</div><div class="l">Planned budget</div><div class="d">${planDescription}</div></div><div class="bud-stat"><div class="n">${money(spent)}</div><div class="l">Budget spending this month</div><div class="d">${Math.round(used*100)}% of the monthly plan used • cash-flow credits excluded</div></div><div class="bud-stat ${remaining<0?'bad':'good'}"><div class="n">${money(remaining)}</div><div class="l">Budget remaining</div><div class="d">Plan minus budget-category spending</div></div><div class="bud-stat ${overall}"><div class="n">${Math.round(used*100)}% / ${Math.round(pace*100)}%</div><div class="l">Budget use / month elapsed</div><div class="d">${paceDiff<=0?'Spending is behind the calendar pace':paceDiff<=.12?'Close to calendar pace':'Spending is running ahead of calendar pace'}</div></div>`;
-  const cash=b.weeklyCashPlan||{total:210,flexibleHousehold:190,girlsAllowance:20,cadence:'Friday'};doc.getElementById('budCash').innerHTML=`<div class="bud-cash-card"><b>${money(cash.total)}</b><span>Total cash every ${esc(cash.cadence||'Friday')}</span></div><div class="bud-cash-card"><b>${money(cash.flexibleHousehold)}</b><span>Flexible household spending</span></div><div class="bud-cash-card"><b>${money(cash.girlsAllowance)}</b><span>Girls' allowance total</span></div>`;
+  doc.getElementById('budCash').closest('.panel').hidden=snap.manualBudget===true;const cash=b.weeklyCashPlan||{total:210,flexibleHousehold:190,girlsAllowance:20,cadence:'Friday'};doc.getElementById('budCash').innerHTML=`<div class="bud-cash-card"><b>${money(cash.total)}</b><span>Total cash every ${esc(cash.cadence||'Friday')}</span></div><div class="bud-cash-card"><b>${money(cash.flexibleHousehold)}</b><span>Flexible household spending</span></div><div class="bud-cash-card"><b>${money(cash.girlsAllowance)}</b><span>Girls' allowance total</span></div>`;
   const paceStatus=paceDiff<=0?['On track','var(--good)']:paceDiff<=.12?['Watch','var(--warn)']:['Running high','var(--bad)'];doc.getElementById('budPace').innerHTML=`<div class="item"><b style="color:${paceStatus[1]}">${paceStatus[0]}</b><span>${Math.round(used*100)}% of the budget has been used while ${Math.round(pace*100)}% of the month has elapsed.</span></div><div class="progress" style="margin-top:10px"><div style="width:${Math.min(100,used*100)}%;background:${paceStatus[1]}"></div></div>`;
   doc.getElementById('budGrid').innerHTML=categoryRows.map(c=>{const p=Number(c.planned||0),s=Number(c.spent||0),rem=p-s,st=status(s,p,pace),width=p>0?Math.min(100,s/p*100):0;return `<div class="bud-cat ${st.card}"><div class="bud-cat-top"><div><h4>${esc(c.name)}</h4><div class="bud-amt">${money(s)} spent of ${money(p)}</div></div><div class="bud-rem">${p>0?(rem>=0?money(rem)+' left':money(Math.abs(rem))+' over'):'No planned amount'}<div class="bud-status ${st.cls}">${st.label}</div></div></div><div class="bud-track"><div class="bud-fill" style="width:${width}%"></div></div></div>`}).join('');
   const outside=b.outsidePlan||[],panel=doc.getElementById('budOutsidePanel');panel.style.display=outside.length?'block':'none';doc.getElementById('budOutside').innerHTML=outside.map(x=>`<div class="bud-outside-row"><b>${esc(x.name)} • ${money(x.spent)}</b><span>${esc(x.note||'Not assigned to a planned category.')}</span></div>`).join('');
@@ -103,6 +103,7 @@ function render(showToast=false){if(!install())return;const doc=d(),snap=snapsho
 }
 function hook(){if(!install())return false;render();window.dispatchEvent(new CustomEvent('mc-budget-rendered'));return true}
 frame.addEventListener('load',()=>{let n=0;const t=setInterval(()=>{n++;if(hook()){clearInterval(t)}else if(n>60)clearInterval(t)},150)});
+window.addEventListener('mc-budget-updated',()=>{render();window.dispatchEvent(new CustomEvent('mc-budget-rendered'));});
 window.addEventListener('mc-private-sync-ready',()=>{hook()});
 window.addEventListener('mc-finance-updated',()=>{hook()});
 if(frame.contentDocument&&frame.contentDocument.readyState==='complete')setTimeout(hook,350);
