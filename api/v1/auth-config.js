@@ -5,5 +5,5 @@ export default function handler(req,res){
   if(!publishableKey)return res.status(503).json({ok:false,error:"Authentication is not configured."});
   const origins=(process.env.MC_AUTHORIZED_PARTIES||'').split(',').map(value=>value.trim().replace(/\/$/,''));
   const signInOrigin=process.env.VERCEL_ENV==='production'&&publishableKey.startsWith('pk_live_')&&origins.includes('https://app.abovethemarkos.com')?'https://app.abovethemarkos.com':null;
-  return res.status(200).json({ok:true,provider:"clerk",publishableKey,...(signInOrigin?{signInOrigin}:{})});
+  return res.status(200).json({ok:true,provider:"clerk",publishableKey,childWorkspaceEnabled:process.env.MC_CHILD_WORKSPACE==="enabled",...(signInOrigin?{signInOrigin}:{})});
 }

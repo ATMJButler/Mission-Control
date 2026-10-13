@@ -23,6 +23,7 @@ function rejectUnknownFields_(body,allowed){const unknown=Object.keys(body||{}).
 function doPost(e){try{
   const body=JSON.parse((e&&e.postData&&e.postData.contents)||'{}');
   authorize_(body.token);
+  if(body.resource==="household_requests")return json_(householdRequests_(body));
   if(body.resource==="member_meals_edit")return json_(editMemberMeals_(body));
   if(body.resource==="member_dashboard")return json_(readMemberDashboard_(body));
   if(body.resource==="budget_setup")return json_(budgetSetup_(body));
@@ -245,7 +246,7 @@ function invitationHeaders_(){return ["invitationId","householdId","role","statu
 function invitationRecords_(){const headers=invitationHeaders_(),sh=identitySheet_("Household Invitations",headers);if(sh.getLastRow()<2)return[];const values=sh.getRange(2,1,sh.getLastRow()-1,headers.length).getValues(),out=[];for(let i=0;i<values.length;i++){const r=values[i];if(!r[0])continue;out.push({sheetRow:i+2,data:Object.fromEntries(headers.map((h,j)=>[h,String(r[j]??"")]))})}return out}
 function hashInviteToken_(token){const bytes=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,String(token),Utilities.Charset.UTF_8);return bytes.map(b=>(b+256)%256).map(b=>b.toString(16).padStart(2,"0")).join("")}
 
-function createHouseholdInvitation_(actorUserId,householdId,role,tokenHash,expiresAt){const lock=LockService.getScriptLock();lock.waitLock(30000);try{if(!actorUserId||!householdId||!tokenHash)throw new Error("INVALID_INVITATION_REQUEST");if(!["secondary","extended"].includes(role))throw new Error("ROLE_NOT_INVITABLE");const uh=["userId","status","displayName","identityProvider","providerSubject","email","createdAt","updatedAt","notes"],hh=["householdId","status","name","createdAt","updatedAt","notes"],mh=["membershipId","householdId","userId","role","status","createdAt","updatedAt","notes"],users=identityRows_("Users",uh),households=identityRows_("Households",hh),members=identityRows_("Household Memberships",mh),actor=users.find(x=>x.userId===actorUserId&&x.status==="active"),household=households.find(x=>x.householdId===householdId&&x.status==="active"),membership=members.find(x=>x.userId===actorUserId&&x.householdId===householdId&&x.status==="active"&&x.role==="principal");if(!actor||!household||!membership)throw new Error("PRINCIPAL_REQUIRED");if(invitationRecords_().some(x=>x.data.tokenHash===tokenHash))throw new Error("INVITATION_TOKEN_COLLISION");const now=new Date().toISOString(),id="inv_"+Utilities.getUuid(),sh=identitySheet_("Household Invitations",invitationHeaders_());sh.appendRow([id,householdId,role,"pending",tokenHash,actorUserId,now,expiresAt||"","","","","Single-use household invitation"]);const auditOk=authAudit_("INVITATION_CREATED",actorUserId,householdId,"principal","identity","create_invitation","SUCCESS","Role "+role);return{ok:true,invitationId:id,householdId,role,status:"pending",expiresAt:expiresAt||"",auditOk}}finally{lock.releaseLock()}}
+function createHouseholdInvitation_(actorUserId,householdId,role,tokenHash,expiresAt){const lock=LockService.getScriptLock();lock.waitLock(30000);try{if(role==="child"&&PropertiesService.getScriptProperties().getProperty("CHILD_WORKSPACE")!=="enabled")throw new Error("CHILD_WORKSPACE_DISABLED");if(!actorUserId||!householdId||!tokenHash)throw new Error("INVALID_INVITATION_REQUEST");if(!["secondary","extended","child"].includes(role))throw new Error("ROLE_NOT_INVITABLE");const uh=["userId","status","displayName","identityProvider","providerSubject","email","createdAt","updatedAt","notes"],hh=["householdId","status","name","createdAt","updatedAt","notes"],mh=["membershipId","householdId","userId","role","status","createdAt","updatedAt","notes"],users=identityRows_("Users",uh),households=identityRows_("Households",hh),members=identityRows_("Household Memberships",mh),actor=users.find(x=>x.userId===actorUserId&&x.status==="active"),household=households.find(x=>x.householdId===householdId&&x.status==="active"),membership=members.find(x=>x.userId===actorUserId&&x.householdId===householdId&&x.status==="active"&&x.role==="principal");if(!actor||!household||!membership)throw new Error("PRINCIPAL_REQUIRED");if(invitationRecords_().some(x=>x.data.tokenHash===tokenHash))throw new Error("INVITATION_TOKEN_COLLISION");const now=new Date().toISOString(),id="inv_"+Utilities.getUuid(),sh=identitySheet_("Household Invitations",invitationHeaders_());sh.appendRow([id,householdId,role,"pending",tokenHash,actorUserId,now,expiresAt||"","","","","Single-use household invitation"]);const auditOk=authAudit_("INVITATION_CREATED",actorUserId,householdId,"principal","identity","create_invitation","SUCCESS","Role "+role);return{ok:true,invitationId:id,householdId,role,status:"pending",expiresAt:expiresAt||"",auditOk}}finally{lock.releaseLock()}}
 function claimHouseholdInvitation_(identity,inviteToken){const lock=LockService.getScriptLock();lock.waitLock(30000);try{const hash=hashInviteToken_(inviteToken),rec=invitationRecords_().find(x=>x.data.tokenHash===hash);if(!rec)throw new Error("INVITATION_NOT_FOUND");const inv=rec.data,now=new Date(),iso=now.toISOString();if(inv.expiresAt&&new Date(inv.expiresAt).getTime()<now.getTime())throw new Error("INVITATION_EXPIRED");const uh=["userId","status","displayName","identityProvider","providerSubject","email","createdAt","updatedAt","notes"],mh=["membershipId","householdId","userId","role","status","createdAt","updatedAt","notes"],users=identityRows_("Users",uh),members=identityRows_("Household Memberships",mh);let user=users.find(x=>x.identityProvider===identity.provider&&x.providerSubject===identity.subject);if(user&&user.status!=="active")throw new Error("USER_DISABLED");if(inv.status==="claimed"){if(user&&inv.claimedByUserId===user.userId&&members.some(x=>x.userId===user.userId&&x.householdId===inv.householdId&&x.status==="active")){const auditOk=authAudit_("INVITATION_RECOVERED",user.userId,inv.householdId,inv.role,"identity","claim_invitation","SUCCESS","Idempotent claimed retry "+inv.invitationId);return{ok:true,householdId:inv.householdId,role:inv.role,status:"claimed",recovered:true,auditOk}}throw new Error("INVITATION_NOT_PENDING")}if(inv.status==="claiming"&&(!user||inv.claimedByUserId!==user.userId))throw new Error("INVITATION_CLAIM_IN_PROGRESS");if(!["pending","claiming"].includes(inv.status))throw new Error("INVITATION_NOT_PENDING");if(!user){const userId="usr_"+Utilities.getUuid();identitySheet_("Users",uh).appendRow([userId,"active",identity.displayName||"",identity.provider,identity.subject,identity.email||"",iso,iso,"Provisioned from claimed household invitation"]);user={userId}}const sh=identitySheet_("Household Invitations",invitationHeaders_());if(inv.status==="pending"){const preserved=[inv.tokenHash,inv.createdByUserId,inv.createdAt,inv.expiresAt];sh.getRange(rec.sheetRow,4,1,6).setValues([["claiming",...preserved,user.userId]]);SpreadsheetApp.flush()}let membership=members.find(x=>x.userId===user.userId&&x.householdId===inv.householdId&&x.status==="active");if(!membership){const membershipId="mem_"+Utilities.getUuid();identitySheet_("Household Memberships",mh).appendRow([membershipId,inv.householdId,user.userId,inv.role,"active",iso,iso,"Created from invitation "+inv.invitationId]);SpreadsheetApp.flush()}sh.getRange(rec.sheetRow,4).setValue("claimed");sh.getRange(rec.sheetRow,10).setValue(iso);sh.getRange(rec.sheetRow,12).setValue("Claim completed");const auditOk=authAudit_("INVITATION_CLAIMED",user.userId,inv.householdId,inv.role,"identity","claim_invitation","SUCCESS","Invitation "+inv.invitationId);return{ok:true,householdId:inv.householdId,role:inv.role,status:"claimed",auditOk}}catch(err){const auditOk=authAudit_("INVITATION_CLAIM_DENIED","", "", "", "identity","claim_invitation","DENIED",String(err.message||err));if(!auditOk)throw new Error(String(err.message||err)+"|AUDIT_WRITE_FAILED");throw err}finally{lock.releaseLock()}}
 function revokeHouseholdInvitation_(actorUserId,invitationId){const lock=LockService.getScriptLock();lock.waitLock(30000);try{const rec=invitationRecords_().find(x=>x.data.invitationId===invitationId);if(!rec)throw new Error("INVITATION_NOT_FOUND");const inv=rec.data;if(inv.status!=="pending")throw new Error("INVITATION_NOT_PENDING");const mh=["membershipId","householdId","userId","role","status","createdAt","updatedAt","notes"],principal=identityRows_("Household Memberships",mh).find(x=>x.userId===actorUserId&&x.householdId===inv.householdId&&x.role==="principal"&&x.status==="active");if(!principal)throw new Error("PRINCIPAL_REQUIRED");const now=new Date().toISOString(),sh=identitySheet_("Household Invitations",invitationHeaders_());sh.getRange(rec.sheetRow,4).setValue("revoked");sh.getRange(rec.sheetRow,11).setValue(now);sh.getRange(rec.sheetRow,12).setValue("Revoked by household principal");const auditOk=authAudit_("INVITATION_REVOKED",actorUserId,inv.householdId,"principal","identity","revoke_invitation","SUCCESS","Invitation "+invitationId);return{ok:true,invitationId,householdId:inv.householdId,status:"revoked",auditOk}}finally{lock.releaseLock()}}
 function operationsSheet_(){const ss=SpreadsheetApp.getActive();let sh=ss.getSheetByName("Agent Operations");if(!sh){sh=ss.insertSheet("Agent Operations");sh.getRange(1,1,1,14).setValues([["operationId","householdId","actorId","operation","resourceId","expectedVersion","payload","status","result","createdAt","processedAt","previousVersion","newVersion","notes"]])}return sh}
@@ -400,7 +401,7 @@ function readMemberDashboard_(body){
     memberSetupAuthority_(body);
     const budget=memberBudgetRead_(body.householdId),meals=memberMealsRead_(body.householdId),family=memberFamilyRead_(body.householdId);
     const setup=memberSetupRecord_(body);
-    return{ok:true,personalConnectionsEnabled:PropertiesService.getScriptProperties().getProperty('PERSONAL_CONNECTIONS')==='enabled',memberMealsEditEnabled:PropertiesService.getScriptProperties().getProperty('MEMBER_MEALS_EDIT')==='enabled',householdId:body.householdId,budgetSnapshot:budget.value,meals:meals.value,familyResources:family.value,profile:setup.record?setup.record.profile:null,sections:{budget:budget.state,meals:meals.state,family:family.state}};
+    return{ok:true,childWorkspaceEnabled:PropertiesService.getScriptProperties().getProperty('CHILD_WORKSPACE')==='enabled',personalConnectionsEnabled:PropertiesService.getScriptProperties().getProperty('PERSONAL_CONNECTIONS')==='enabled',memberMealsEditEnabled:PropertiesService.getScriptProperties().getProperty('MEMBER_MEALS_EDIT')==='enabled',householdId:body.householdId,budgetSnapshot:budget.value,meals:meals.value,familyResources:family.value,profile:setup.record?setup.record.profile:null,sections:{budget:budget.state,meals:meals.state,family:family.state}};
   }finally{lock.releaseLock()}
 }
 
@@ -577,4 +578,118 @@ function budgetMemberSummary_(householdId){
     const date=Utilities.formatDate(new Date(),'America/Chicago','yyyy-MM'),summary=MCBudget.summary(r.active,r.transactions,date);
     return{state:'available',value:{asOf:new Date().toISOString(),budgetMode:'manual',budget:{categories:summary.categories.map(c=>({name:c.name,planned:c.plannedCents/100}))},budgetReconciliation:{categories:summary.categories.map(c=>({name:c.name,spent:c.spentCents/100}))}}};
   }catch{return{state:'unavailable',value:null}}
+}
+
+// BEGIN HOUSEHOLD REQUEST MODEL
+var MCHouseholdRequests=(()=>{
+ const obj=v=>v&&typeof v==='object'&&!Array.isArray(v),keys=(v,allowed)=>obj(v)&&Object.keys(v).length===allowed.length&&Object.keys(v).every(k=>allowed.includes(k));
+ const text=(v,max,blank=false)=>typeof v==='string'&&v.length<=max&&(blank||v.trim().length>0);
+ const id=v=>text(v,100)&&/^[\w-]+$/.test(v);
+ const date=v=>{try{return typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)&&new Date(v+'T12:00:00Z').toISOString().slice(0,10)===v;}catch{return false;}};
+ function validateRequest(v){
+  if(!obj(v)||!['grocery','meal','calendar'].includes(v.kind))return false;
+  const fields=v.kind==='grocery'?['kind','item','quantity','plan','weekStart','note']:v.kind==='meal'?['kind','meal','prep','date','plan','weekStart','note']:['kind','title','date','time','note'];
+  if(!keys(v,fields)||!text(v.note,500,true))return false;
+  if(v.kind==='calendar')return text(v.title,200)&&date(v.date)&&text(v.time,100,true);
+  if(!['approved','draft'].includes(v.plan)||!date(v.weekStart))return false;
+  return v.kind==='grocery'?text(v.item,200)&&text(v.quantity,100):text(v.meal,200)&&text(v.prep,500,true)&&date(v.date);
+ }
+ function validateEvent(v){return keys(v,['id','title','date','time','note'])&&id(v.id)&&text(v.title,200)&&date(v.date)&&text(v.time,100,true)&&text(v.note,500,true);}
+ function validate(body){
+  if(!obj(body)||!['dashboard','submit','inbox','decide','settings','publish_event','remove_event'].includes(body.operation))return false;
+  const allowed=['operation','householdId',...(['dashboard','inbox'].includes(body.operation)?[]:['expectedVersion','commandId']),...(body.operation==='submit'?['request']:body.operation==='decide'?['requestId','decision','response','expectedMealsVersion']:body.operation==='settings'?['budgetCategories']:body.operation==='publish_event'?['event']:body.operation==='remove_event'?['eventId']:[])];
+  if(Object.keys(body).some(k=>!allowed.includes(k))||(body.householdId!==undefined&&!text(body.householdId,120)))return false;
+  if(['dashboard','inbox'].includes(body.operation))return true;
+  if(!Number.isSafeInteger(body.expectedVersion)||body.expectedVersion<0||body.expectedVersion>=Number.MAX_SAFE_INTEGER||!id(body.commandId)||body.commandId.length>96)return false;
+  if(body.operation==='submit')return validateRequest(body.request);
+  if(body.operation==='decide')return id(body.requestId)&&['approve','decline'].includes(body.decision)&&text(body.response,500,true)&&Number.isSafeInteger(body.expectedMealsVersion)&&body.expectedMealsVersion>=0;
+  if(body.operation==='settings')return Array.isArray(body.budgetCategories)&&body.budgetCategories.length<=100&&body.budgetCategories.every(x=>text(x,100))&&new Set(body.budgetCategories).size===body.budgetCategories.length;
+  if(body.operation==='publish_event')return validateEvent(body.event);
+  return id(body.eventId);
+ }
+ return{validate,validateRequest,validateEvent};
+})();
+if(typeof globalThis!=='undefined')globalThis.MCHouseholdRequests=MCHouseholdRequests;
+// END HOUSEHOLD REQUEST MODEL
+
+const HOUSEHOLD_REQUEST_HEADERS=['householdId','version','json1','json2','json3','json4','json5','json6','json7','json8','updatedAt','updatedBy'];
+function householdRequestRole_(body){
+ const users=diagnosticsTable_('Users',['userId','status','displayName','identityProvider','providerSubject','email','createdAt','updatedAt','notes']),homes=diagnosticsTable_('Households',['householdId','status','name','createdAt','updatedAt','notes']),members=diagnosticsTable_('Household Memberships',['membershipId','householdId','userId','role','status','createdAt','updatedAt','notes']);
+ if(![users,homes,members].every(t=>t.headersValid))throw new Error('HOUSEHOLD_REQUESTS_FORBIDDEN');
+ const u=users.rows.filter(r=>r[0]===body.actor),h=homes.rows.filter(r=>r[0]===body.householdId),m=members.rows.filter(r=>r[1]===body.householdId&&r[2]===body.actor);
+ if(u.length!==1||h.length!==1||m.length!==1||u[0][1]!=='active'||h[0][1]!=='active'||m[0][4]!=='active'||!['principal','secondary','child'].includes(m[0][3]))throw new Error('HOUSEHOLD_REQUESTS_FORBIDDEN');return m[0][3];
+}
+function householdRequestRecord_(householdId){
+ const sheet=SpreadsheetApp.getActive().getSheetByName('Household Requests');const empty=()=>({version:0,requests:[],events:[],budgetCategories:[],lastCommandId:'',lastFingerprint:''});
+ if(!sheet)return{sheet:null,row:0,record:empty()};if(sheet.getRange(1,1,1,HOUSEHOLD_REQUEST_HEADERS.length).getValues()[0].join('|')!==HOUSEHOLD_REQUEST_HEADERS.join('|'))throw new Error('HOUSEHOLD_REQUESTS_SCHEMA_INVALID');
+ const rows=sheet.getLastRow()>1?sheet.getRange(2,1,sheet.getLastRow()-1,HOUSEHOLD_REQUEST_HEADERS.length).getValues():[],matches=[];rows.forEach((r,i)=>{if(r[0]===householdId)matches.push({row:i+2,cells:r})});if(matches.length>1)throw new Error('HOUSEHOLD_REQUESTS_SCHEMA_INVALID');if(!matches.length)return{sheet:sheet,row:0,record:empty()};
+ let r;try{r=JSON.parse(matches[0].cells.slice(2,10).join(''));}catch{throw new Error('HOUSEHOLD_REQUESTS_SCHEMA_INVALID')}
+ if(!Number.isSafeInteger(r.version)||r.version<0||r.version!==Number(matches[0].cells[1])||!Array.isArray(r.requests)||r.requests.length>500||new Set(r.requests.map(x=>x.id)).size!==r.requests.length||r.requests.some(x=>!x||typeof x.actor!=='string'||!MCHouseholdRequests.validateRequest(x.request)||!['pending','applying','approved','approved_review','declined'].includes(x.status))||!Array.isArray(r.events)||r.events.length>200||r.events.some(e=>!MCHouseholdRequests.validateEvent(e))||new Set(r.events.map(e=>e.id)).size!==r.events.length||!Array.isArray(r.budgetCategories)||r.budgetCategories.some(x=>typeof x!=='string'||x.length>100))throw new Error('HOUSEHOLD_REQUESTS_SCHEMA_INVALID');
+ return{sheet:sheet,row:matches[0].row,record:r};
+}
+function persistHouseholdRequests_(found,body){
+ const json=JSON.stringify(found.record);if(json.length>300000)throw new Error('HOUSEHOLD_REQUESTS_INVALID');let sheet=found.sheet;if(!sheet){sheet=SpreadsheetApp.getActive().insertSheet('Household Requests');sheet.getRange(1,1,1,HOUSEHOLD_REQUEST_HEADERS.length).setValues([HOUSEHOLD_REQUEST_HEADERS]);found.sheet=sheet;}if(!found.row)found.row=Math.max(2,sheet.getLastRow()+1);
+ sheet.getRange(found.row,1,1,HOUSEHOLD_REQUEST_HEADERS.length).setValues([[body.householdId,found.record.version,...Array.from({length:8},(_,i)=>json.slice(i*40000,(i+1)*40000)),new Date().toISOString(),body.actor]]);SpreadsheetApp.flush();
+}
+function householdRequestMeals_(householdId){
+ const sheet=SpreadsheetApp.getActive().getSheetByName('Meals'),headers=['key','householdId','schemaVersion','updatedAt','updatedBy','status','json','notes'];if(!sheet||sheet.getRange(1,1,1,8).getValues()[0].join('|')!==headers.join('|'))throw new Error('HOUSEHOLD_REQUESTS_REVIEW_REQUIRED');
+ const rows=sheet.getLastRow()>1?sheet.getRange(2,1,sheet.getLastRow()-1,8).getValues():[],found=[];rows.forEach((r,i)=>{if(r[1]===householdId)found.push({cells:r,row:i+2})});if(found.length!==1||!found[0].cells[0]||rows.filter(r=>r[0]===found[0].cells[0]).length!==1)throw new Error('HOUSEHOLD_REQUESTS_REVIEW_REQUIRED');
+ const current=memberCellJson_(found[0].cells[6]);if(current.householdId!==householdId||!Number.isSafeInteger(current.version)||current.version<1||(current.appliedHouseholdRequests!==undefined&&(!Array.isArray(current.appliedHouseholdRequests)||current.appliedHouseholdRequests.length>500||current.appliedHouseholdRequests.some(x=>typeof x!=='string'))))throw new Error('HOUSEHOLD_REQUESTS_REVIEW_REQUIRED');return{sheet:sheet,row:found[0].row,cells:found[0].cells,current:current};
+}
+function householdRequestView_(found,body,role){
+ const r=found.record,meals=memberMealsRead_(body.householdId),budget=memberBudgetRead_(body.householdId);let b=null;
+ if(role==='child'&&r.budgetCategories.length&&budget.state==='available'){
+  const names=new Set(r.budgetCategories),v=budget.value;
+  b={asOf:v.asOf,budgetMode:v.budgetMode,budget:{categories:v.budget.categories.filter(c=>names.has(c.name))},budgetReconciliation:{categories:v.budgetReconciliation.categories.filter(c=>names.has(c.name))}};
+ }
+ const requests=r.requests.filter(x=>role!=='child'||x.actor===body.actor).map(x=>({id:x.id,actor:x.actor,request:x.request,status:x.status,createdAt:x.createdAt,response:x.response||'',...(role==='child'?{}:{requestedBy:x.requestedBy})}));
+ return{ok:true,householdId:body.householdId,data:{version:r.version,requests:requests,events:r.events,meals:meals.state==='available'?meals.value:null,budget:b,lastCommandId:r.lastCommandId,...(role==='principal'?{budgetCategories:r.budgetCategories,budgetOptions:budget.state==='available'?budget.value.budget.categories.map(c=>c.name):[]}:{} )}};
+}
+function householdRequests_(body){
+ if(PropertiesService.getScriptProperties().getProperty('CHILD_WORKSPACE')!=='enabled')throw new Error('HOUSEHOLD_REQUESTS_DISABLED');
+ const request={};Object.keys(body).forEach(k=>{if(!['token','resource','actor'].includes(k))request[k]=body[k]});if(!MCHouseholdRequests.validate(request))throw new Error('HOUSEHOLD_REQUESTS_INVALID');
+ const lock=LockService.getScriptLock();lock.waitLock(30000);let writing=false;
+ try{
+  const role=householdRequestRole_(body),adult=['principal','secondary'].includes(role);
+  if((['dashboard','submit'].includes(body.operation)&&role!=='child')||(['inbox','decide','publish_event','remove_event'].includes(body.operation)&&!adult)||(body.operation==='settings'&&role!=='principal'))throw new Error('HOUSEHOLD_REQUESTS_FORBIDDEN');
+  const found=householdRequestRecord_(body.householdId),r=found.record;if(['dashboard','inbox'].includes(body.operation))return householdRequestView_(found,body,role);
+  const fingerprint=JSON.stringify([body.actor,request]);if(r.lastCommandId===body.commandId){if(r.lastFingerprint!==fingerprint)throw new Error('HOUSEHOLD_REQUESTS_CONFLICT');return householdRequestView_(found,body,role);}
+  if(r.version!==body.expectedVersion)throw new Error('HOUSEHOLD_REQUESTS_CONFLICT');
+  if(body.operation==='submit'){
+   const id='req_'+body.commandId;if(r.requests.some(x=>x.id===id)||r.requests.length>=500||r.requests.filter(x=>x.actor===body.actor&&x.status==='pending').length>=50)throw new Error('HOUSEHOLD_REQUESTS_CONFLICT');
+   if(body.request.kind!=='calendar'){const meals=householdRequestMeals_(body.householdId).current,plan=meals[body.request.plan];if(!plan||plan.weekStart!==body.request.weekStart||(body.request.kind==='meal'&&(!Array.isArray(plan.days)||plan.days.filter(d=>d.date===body.request.date).length!==1)))throw new Error('HOUSEHOLD_REQUESTS_REVIEW_REQUIRED');}
+   const users=diagnosticsTable_('Users',['userId','status','displayName','identityProvider','providerSubject','email','createdAt','updatedAt','notes']);const user=users.rows.find(x=>x[0]===body.actor);
+   r.requests.push({id:id,actor:body.actor,requestedBy:memberText_(user[2]).slice(0,100)||'Household member',request:body.request,status:'pending',response:'',createdAt:new Date().toISOString()});
+  }
+  if(body.operation==='settings'){
+   const budget=memberBudgetRead_(body.householdId);if(body.budgetCategories.length&&(budget.state!=='available'||body.budgetCategories.some(name=>!budget.value.budget.categories.some(c=>c.name===name))))throw new Error('HOUSEHOLD_REQUESTS_INVALID');r.budgetCategories=body.budgetCategories;
+  }
+  if(body.operation==='publish_event'){const index=r.events.findIndex(e=>e.id===body.event.id);if(index>=0)r.events[index]=body.event;else{if(r.events.length>=200)throw new Error('HOUSEHOLD_REQUESTS_CONFLICT');r.events.push(body.event);}}
+  if(body.operation==='remove_event'){const index=r.events.findIndex(e=>e.id===body.eventId);if(index<0)throw new Error('HOUSEHOLD_REQUESTS_CONFLICT');r.events.splice(index,1);}
+  if(body.operation==='decide'){
+   const req=r.requests.find(x=>x.id===body.requestId);if(!req||!['pending','applying'].includes(req.status))throw new Error('HOUSEHOLD_REQUESTS_CONFLICT');
+   let target=null,applied=false;if(req.request.kind!=='calendar'){target=householdRequestMeals_(body.householdId);applied=(target.current.appliedHouseholdRequests||[]).includes(req.id);}
+   if(applied){req.status='approved';req.response=req.approval?.response||'';req.decidedBy=req.approval?.actor||body.actor;}
+   else if(body.decision==='decline'){req.status='declined';req.response=body.response;req.decidedBy=body.actor;}
+   else if(req.request.kind==='calendar'){if(householdRequestRole_({actor:req.actor,householdId:body.householdId})!=='child')throw new Error('HOUSEHOLD_REQUESTS_FORBIDDEN');req.status='approved_review';req.response=body.response;req.decidedBy=body.actor;}
+   else{
+    if(householdRequestRole_({actor:req.actor,householdId:body.householdId})!=='child')throw new Error('HOUSEHOLD_REQUESTS_FORBIDDEN');
+    const current=target.current,plan=current[req.request.plan];if(current.version!==body.expectedMealsVersion||!plan||plan.weekStart!==req.request.weekStart||!Array.isArray(plan.days))throw new Error('HOUSEHOLD_REQUESTS_REVIEW_REQUIRED');
+    const next=JSON.parse(JSON.stringify(current));
+    if(req.request.kind==='grocery'){
+     if(!Array.isArray(plan.groceryList)||plan.groceryList.length>=200)throw new Error('HOUSEHOLD_REQUESTS_REVIEW_REQUIRED');next[req.request.plan].groceryList.push({item:req.request.item,qty:req.request.quantity,done:false});
+    }else{
+     const matches=plan.days.filter(d=>d.date===req.request.date);if(matches.length!==1)throw new Error('HOUSEHOLD_REQUESTS_REVIEW_REQUIRED');const day=next[req.request.plan].days.find(d=>d.date===req.request.date);if(day.meal!==req.request.meal)delete day.recipe;day.meal=req.request.meal;day.prep=req.request.prep;
+    }
+    const ids=current.appliedHouseholdRequests||[];if(ids.length>=500)throw new Error('HOUSEHOLD_REQUESTS_CONFLICT');next.appliedHouseholdRequests=[...ids,req.id];next.version=current.version+1;next.updatedAt=new Date().toISOString();next.updatedBy=body.actor;next[req.request.plan].updatedAt=next.updatedAt;next[req.request.plan].updatedBy=body.actor;
+    const json=JSON.stringify(next);if(json.length>45000)throw new Error('HOUSEHOLD_REQUESTS_INVALID');
+    req.status='applying';req.approval={actor:body.actor,response:body.response,expectedMealsVersion:current.version};writing=true;persistHouseholdRequests_(found,body);
+    const cells=target.cells.slice();cells[3]=next.updatedAt;cells[4]=body.actor;cells[6]=json;target.sheet.getRange(target.row,1,1,8).setValues([cells]);SpreadsheetApp.flush();
+    req.status='approved';req.response=body.response;req.decidedBy=body.actor;
+   }
+   req.decidedAt=new Date().toISOString();
+  }
+  r.version++;r.lastCommandId=body.commandId;r.lastFingerprint=fingerprint;writing=true;persistHouseholdRequests_(found,body);return householdRequestView_(found,body,role);
+ }catch(e){if(writing)throw new Error('HOUSEHOLD_REQUESTS_OUTCOME_UNKNOWN');throw e}
+ finally{try{if(writing)SpreadsheetApp.flush()}catch(_e){console.error('Household request cleanup flush failed')}finally{lock.releaseLock()}}
 }

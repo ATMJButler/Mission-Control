@@ -6,6 +6,7 @@ import {resolveAccessContext} from '../../auth/directory.js';
 import {authorize} from '../../auth/authorization.js';
 import {validateSetupPreferences,callMemberSetup} from '../../auth/member-setup.js';
 import {validateMemberMealEdit,editMemberMeals} from '../../auth/member-meals-edit.js';
+import {requestModel,callHouseholdRequests} from '../../auth/household-requests.js';
 import {validateBudgetRequest,callBudget} from '../../auth/budget.js';
 import {readMemberDashboard} from '../../auth/member-dashboard.js';
 import {validatePersonalRequest,handlePersonalConnection} from '../../auth/personal-connections.js';
@@ -17,6 +18,13 @@ export default async function handler(req,res){
     requireMissionControlOrigin(req);installClerkIdentityAdapter();installUpstreamDirectoryAdapter();
     const identity=await requireVerifiedIdentity(req);
     let body;try{body=typeof req.body==='string'?JSON.parse(req.body):req.body;}catch{body=null;}
+    if(body?.resource==='household_requests'){
+      if(process.env.MC_CHILD_WORKSPACE!=='enabled')return res.status(503).json({ok:false,code:'HOUSEHOLD_REQUESTS_DISABLED'});
+      const {resource,...request}=body;if(!requestModel.validate(request))return res.status(400).json({ok:false,code:'HOUSEHOLD_REQUESTS_INVALID'});
+      const ctx=await resolveAccessContext(identity,request.householdId||process.env.MC_DEFAULT_HOUSEHOLD_ID||'butler-household');
+      const auth=authorize({...ctx,resource:'household_requests',operation:request.operation});if(!auth.ok)return res.status(403).json({ok:false,code:'HOUSEHOLD_REQUESTS_FORBIDDEN'});
+      return res.status(200).json(await callHouseholdRequests({...request,actor:auth.userId,householdId:auth.householdId},auth.role));
+    }
     if(body?.resource==='budget_setup'){
       const {resource,...budgetRequest}=body;
       if(!validateBudgetRequest(budgetRequest))return res.status(400).json({ok:false,code:'BUDGET_INVALID'});
@@ -56,6 +64,7 @@ export default async function handler(req,res){
     return res.status(200).json(result);
   }catch(error){
     const allowed=new Set(['UNAUTHENTICATED','USER_NOT_PROVISIONED','IDENTITY_BINDING_NOT_UNIQUE','HOUSEHOLD_INACTIVE_OR_MISSING','MEMBERSHIP_INACTIVE_OR_MISSING','MEMBERSHIP_NOT_UNIQUE','ORIGIN_FORBIDDEN','CROSS_SITE_FORBIDDEN','MEMBER_SETUP_DISABLED','MEMBER_SETUP_FORBIDDEN','MEMBER_SETUP_INVALID','MEMBER_SETUP_CONFLICT','MEMBER_SETUP_SCHEMA_INVALID','MEMBER_SETUP_OUTCOME_UNKNOWN','MEMBER_DASHBOARD_DISABLED','MEMBER_DASHBOARD_FORBIDDEN','MEMBER_MEALS_DISABLED','MEMBER_MEALS_INVALID','MEMBER_MEALS_CONFLICT','MEMBER_MEALS_FORBIDDEN','MEMBER_MEALS_OUTCOME_UNKNOWN','MEMBER_MEALS_UNAVAILABLE']);
+    for(const code of ['HOUSEHOLD_REQUESTS_DISABLED','HOUSEHOLD_REQUESTS_FORBIDDEN','HOUSEHOLD_REQUESTS_INVALID','HOUSEHOLD_REQUESTS_CONFLICT','HOUSEHOLD_REQUESTS_SCHEMA_INVALID','HOUSEHOLD_REQUESTS_REVIEW_REQUIRED','HOUSEHOLD_REQUESTS_OUTCOME_UNKNOWN','HOUSEHOLD_REQUESTS_UNAVAILABLE'])allowed.add(code);
     for(const code of ['BUDGET_INVALID','BUDGET_FORBIDDEN','BUDGET_CONFLICT','BUDGET_SCHEMA_INVALID','BUDGET_OUTCOME_UNKNOWN','BUDGET_UNAVAILABLE'])allowed.add(code);
     for(const code of ['PERSONAL_CONNECTIONS_INVALID','PERSONAL_CONNECTIONS_DISABLED','PERSONAL_CONNECTIONS_UNAVAILABLE','PERSONAL_CONNECTIONS_FORBIDDEN','PERSONAL_CONNECTIONS_CONFLICT','PERSONAL_CONNECTIONS_SCHEMA_INVALID','PERSONAL_CONNECTIONS_CONSENT_EXPIRED','PERSONAL_CONNECTIONS_OUTCOME_UNKNOWN','PERSONAL_PROVIDER_NOT_CONFIGURED','PERSONAL_PROVIDER_UNAVAILABLE','PERSONAL_PROVIDER_LIMIT','PERSONAL_RECONNECT_REQUIRED'])allowed.add(code);
     return res.status([400,401,403,409,503].includes(error?.statusCode)?error.statusCode:503).json({ok:false,code:allowed.has(error?.code)?error.code:'MEMBER_SETUP_UNAVAILABLE'});

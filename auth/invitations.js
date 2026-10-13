@@ -10,7 +10,7 @@ async function upstreamCall(payload){
   if(!upstream||!token)throw Object.assign(new Error("Private upstream unavailable"),{statusCode:503});
   const r=await fetch(upstream,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({...payload,token}),cache:"no-store"});
   const text=await r.text();let body;try{body=JSON.parse(text)}catch(_e){throw Object.assign(new Error("Invitation upstream returned non-JSON"),{statusCode:502})}
-  if(!body.ok){const code=body.error||body.reason||"INVITATION_DENIED";const status=["INVITATION_NOT_FOUND"].includes(code)?404:["INVITATION_EXPIRED","INVITATION_NOT_PENDING","INVITATION_CLAIM_IN_PROGRESS","MEMBERSHIP_ALREADY_EXISTS"].includes(code)?409:["ROLE_NOT_INVITABLE","INVALID_INVITATION_REQUEST"].includes(code)?400:403;throw Object.assign(new Error(code),{statusCode:status,code})}
+  if(!body.ok){const code=body.error||body.reason||"INVITATION_DENIED";const status=code==="CHILD_WORKSPACE_DISABLED"?503:["INVITATION_NOT_FOUND"].includes(code)?404:["INVITATION_EXPIRED","INVITATION_NOT_PENDING","INVITATION_CLAIM_IN_PROGRESS","MEMBERSHIP_ALREADY_EXISTS"].includes(code)?409:["ROLE_NOT_INVITABLE","INVALID_INVITATION_REQUEST"].includes(code)?400:403;throw Object.assign(new Error(code),{statusCode:status,code})}
   return body;
 }
 export async function createInvitation(req,{householdId,role}){
@@ -18,7 +18,8 @@ export async function createInvitation(req,{householdId,role}){
   const identity=await requireVerifiedIdentity(req),ctx=await resolveAccessContext(identity,householdId);
   const auth=authorize({user:ctx.user,household:ctx.household,membership:ctx.membership,resource:"identity",operation:"manage_memberships"});
   if(!auth.ok)throw Object.assign(new Error(auth.reason),{statusCode:403,code:auth.reason});
-  if(!["secondary","extended"].includes(role))throw Object.assign(new Error("ROLE_NOT_INVITABLE"),{statusCode:400});
+  if(!["secondary","extended","child"].includes(role))throw Object.assign(new Error("ROLE_NOT_INVITABLE"),{statusCode:400});
+  if(role==="child"&&process.env.MC_CHILD_WORKSPACE!=="enabled")throw Object.assign(new Error("CHILD_WORKSPACE_DISABLED"),{statusCode:503});
   const raw=crypto.randomBytes(32).toString("base64url"),tokenHash=crypto.createHash("sha256").update(raw).digest("hex"),expiresAt=new Date(Date.now()+24*60*60*1000).toISOString();
   const result=await upstreamCall({resource:"household_invitation",operation:"create",actorUserId:ctx.user.userId,householdId,role,tokenHash,expiresAt});
   return {...result,inviteToken:raw};
