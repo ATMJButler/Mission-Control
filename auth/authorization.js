@@ -1,10 +1,12 @@
 export const ROLES = Object.freeze({
   PRINCIPAL: "principal",
   SECONDARY: "secondary",
-  EXTENDED: "extended"
+  EXTENDED: "extended",
+  CHILD: "child"
 });
 
 const POLICIES = Object.freeze({
+  household_requests: Object.freeze({dashboard:["child"],submit:["child"],inbox:["principal","secondary"],decide:["principal","secondary"],settings:["principal"],publish_event:["principal","secondary"],remove_event:["principal","secondary"]}),
   budget_setup: Object.freeze(Object.fromEntries(["read","save","activate","transaction","delete_transaction"].map(op=>[op,["principal"]]))),
   member_meals: Object.freeze({edit: ["principal","secondary"]}),
   member_workspace: Object.freeze({read: ["principal","secondary"]}),
@@ -25,7 +27,7 @@ const POLICIES = Object.freeze({
     approve: ["principal"]
   }),
   identity: Object.freeze({
-    read_self: ["principal","secondary","extended"],
+    read_self: ["principal","secondary","extended","child"],
     manage_memberships: ["principal"]
   })
 });

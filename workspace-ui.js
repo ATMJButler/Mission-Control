@@ -11,7 +11,7 @@
     const modal=element("mcOnboard");if(modal){modal.classList.remove("show");modal.setAttribute("aria-hidden","true");}
   }
   function connectionNotice(message){const notice=element("mcWorkspaceNotice");if(notice){notice.textContent=message;notice.hidden=!message;}}
-  function signedOut(){connectionNotice("");generation++;sessionKey=null;pending=false;cacheReady=false;lastCheck=0;reauthenticate=false;hold("Sign in to continue.");}
+  function signedOut(){window.mcHouseholdRequestsReady=false;connectionNotice("");generation++;sessionKey=null;pending=false;cacheReady=false;lastCheck=0;reauthenticate=false;hold("Sign in to continue.");}
   async function verify(force=false){
     const currentKey=key();if(!currentKey){signedOut();return;}
     if(currentKey!==sessionKey){generation++;sessionKey=currentKey;pending=false;cacheReady=false;lastCheck=0;hold("Checking household access…");}
@@ -37,7 +37,7 @@
           response.status===401?"Your session needs a fresh sign-in.":"Household access could not be confirmed. Try again or contact your household principal.",
           {retry:true,join:body.code==="USER_NOT_PROVISIONED"});return;
       }
-      const workspace=body.workspace;
+      const workspace=body.workspace;window.mcHouseholdRequestsReady=workspace?.householdRequestsReady===true;
       reauthenticate=false;
       if(workspace?.role==="principal"&&workspace.principalWorkspace===true){
         element("mcWorkspaceGate").style.display="none";element("mcWorkspaceJoin").hidden=true;
@@ -51,7 +51,9 @@
         element("mcWorkspaceGate").style.display="none";
         const frame=element("core");if(frame.getAttribute("src")!=="/member-setup.html")frame.src="/member-setup.html";
         const preview=element("mcJuliePreview");if(preview)preview.hidden=true;
-      }else if(["secondary","extended"].includes(workspace?.role)&&workspace.principalWorkspace===false){
+      }else if(workspace?.role==="child"&&workspace.childWorkspaceReady===true){
+        element("mcWorkspaceGate").style.display="none";const frame=element("core");if(frame.getAttribute("src")!=="/kid.html")frame.src="/kid.html";const preview=element("mcJuliePreview");if(preview)preview.hidden=true;
+      }else if(["secondary","extended","child"].includes(workspace?.role)&&workspace.principalWorkspace===false){
         hold("Your household membership is verified. Member setup is still being prepared; this account cannot open the principal workspace.",{retry:true});
       }else hold("Workspace response could not be verified. Try again.",{retry:true});
     }catch{
@@ -60,6 +62,10 @@
       if(current===generation){pending=false;element("mcWorkspaceRetry").disabled=false;}
     }
   }
+  element("core")?.addEventListener("load",()=>{
+    if(!window.mcHouseholdRequestsReady)return;
+    try{const doc=element("core").contentDocument,nav=doc?.querySelector('.nav');if(nav&&!doc.getElementById('householdRequestsNav')){const link=doc.createElement('a');link.id='householdRequestsNav';link.href='/household-requests.html';link.target='_top';link.className='btn';link.textContent='Requests';nav.append(link);}}catch{}
+  });
   window.addEventListener("mc-authenticated",()=>{if(!listening){listening=true;window.Clerk.addListener(()=>verify());}verify();});
   window.addEventListener("mc-signed-out",signedOut);
   window.addEventListener("DOMContentLoaded",()=>{

@@ -29,3 +29,6 @@ jobs:
 
       - name: Check manual budget setup with synthetic data
         run: node scripts/check-budget-browser.mjs
+
+      - name: Check kid and adult household requests with synthetic data
+        run: node scripts/check-kid-browser.mjs
